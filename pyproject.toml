@@ -1,0 +1,26 @@
+[project]
+name = "mutation-prediction"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "jikaelgagnon", email = "jikaelgagnon@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "ipykernel>=7.4.0",
+    "lightning>=2.6.6",
+    "pandas>=3.0.6",
+    "pathlib>=1.0.1",
+    "py3dmol>=2.5.5",
+    "torch>=2.14.0",
+    "torchvision>=0.29.0",
+    "zenodo-get>=3.1.0",
+]
+
+[project.scripts]
+mutation-prediction = "mutation_prediction:main"
+
+[build-system]
+requires = ["uv_build>=0.12.20,<0.13.0"]
+build-backend = "uv_build"
