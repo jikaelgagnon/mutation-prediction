@@ -3,8 +3,13 @@ import torch.nn as nn
 from itertools import permutations
 import numpy as np
 
-from thermompnn.model.modules import get_protein_mpnn, LightAttention, MPNNLayer, SideChainModule
-from thermompnn.model.side_chain_model import get_protein_mpnn_sca
+from mutation_prediction.thermo_mpnn_d.thermompnn.model.modules import (
+    get_protein_mpnn,
+    LightAttention,
+    MPNNLayer,
+    SideChainModule,
+)
+from mutation_prediction.thermo_mpnn_d.thermompnn.model.side_chain_model import get_protein_mpnn_sca
 
 
 def batched_index_select(input, dim, index):
@@ -41,6 +46,7 @@ def _check_sequence_match(S, wt, mut, pos):
     Checks if S matches wt amino acids at the specified positions. 
     If not matching, adjusts S to match wt.
     """
+    S = S.clone()
     for mut_idx in range(wt.shape[-1]): # check each mutation separately
         S_check = torch.gather(S, -1, pos[..., mut_idx, None]) # selects all amino acids in seq at pos locations
         
@@ -55,14 +61,16 @@ def _check_sequence_match(S, wt, mut, pos):
 class TransferModelv2(nn.Module):
     """Rewritten TransferModel class using Batched datasets for faster training"""
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, *, protein_encoder=None, prediction_head=None):
         super().__init__()
         self.cfg = cfg
 
         # specify single/double status
         self.multi_mutations = True if self.cfg.model.aggregation is not None else False
 
-        if 'proteinmpnn' in self.cfg.model:
+        if protein_encoder is not None:
+            self.prot_mpnn = protein_encoder
+        elif 'proteinmpnn' in self.cfg.model:
             # for side chain aware or alternatively trained models
             self.prot_mpnn = get_protein_mpnn_sca(cfg)
         else:
@@ -103,6 +111,9 @@ class TransferModelv2(nn.Module):
                 self.ddg_out.append(nn.Dropout(drop))
             self.ddg_out.append(nn.ReLU())
             self.ddg_out.append(nn.Linear(sz1, sz2))
+
+        if prediction_head is not None:
+            self.ddg_out = prediction_head
 
     def forward(self, X, S, mask, chain_M, residue_idx, chain_encoding_all, mut_positions, mut_wildtype_AAs, mut_mutant_AAs, mut_ddGs, atom_mask, esm_emb=None):
         """Vectorized fwd function for arbitrary batches of mutations"""
@@ -359,11 +370,11 @@ class TransferModelv2(nn.Module):
 class TransferModelv2Siamese(nn.Module):
     """Rewritten TransferModel class using Batched datasets for faster training"""
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, *, protein_encoder=None, prediction_head=None):
         super().__init__()
         self.cfg = cfg
 
-        self.prot_mpnn = get_protein_mpnn(cfg)
+        self.prot_mpnn = protein_encoder if protein_encoder is not None else get_protein_mpnn(cfg)
 
         HIDDEN_DIM, EMBED_DIM, VOCAB_DIM = self._set_model_dims()
         hid_sizes = [HIDDEN_DIM * 2]
@@ -392,6 +403,8 @@ class TransferModelv2Siamese(nn.Module):
 
         # final output layer (no ReLU/dropout)
         self.ddg_out.append(nn.Linear(hid_sizes[-2], hid_sizes[-1]))
+        if prediction_head is not None:
+            self.ddg_out = prediction_head
 
     def forward(self, X, S, mask, chain_M, residue_idx, chain_encoding_all, mut_positions, mut_wildtype_AAs, mut_mutant_AAs, mut_ddGs, atom_mask, esm_emb=None):
         """Vectorized fwd function for arbitrary batches of mutations"""
@@ -495,7 +508,10 @@ class TransferModelv2Siamese(nn.Module):
             single_mask = ~torch.logical_and(mut_wildtype_AAs[..., -1] == 0, mut_mutant_AAs[..., -1] == 0) # [B, ] 0 if single, 1 if double
             # print(single_mask.sum() / single_mask.numel()) # should be ~2:1 single:double (0.33 or so on average)
             single_mask = single_mask[..., None].expand(-1, final_embed.shape[-1])
-            final_embed[-1, ...] = final_embed[-1, ...] * single_mask # zero out singles padded in Emb2
+            final_embed = torch.cat(
+                (final_embed[:-1], (final_embed[-1] * single_mask).unsqueeze(0)),
+                dim=0,
+            )
         
         # make two copies, one with AB order and other with BA order of mutation
         embedAB = torch.cat((final_embed[0, :, :], final_embed[1, :, :]), dim=-1)

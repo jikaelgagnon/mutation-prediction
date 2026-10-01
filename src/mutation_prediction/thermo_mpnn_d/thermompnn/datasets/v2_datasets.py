@@ -9,8 +9,12 @@ from copy import deepcopy
 from itertools import permutations
 import itertools
 
-from thermompnn.protein_mpnn_utils import alt_parse_PDB, parse_PDB
-from thermompnn.datasets.dataset_utils import Mutation, seq1_index_to_seq2_index, ALPHABET
+from mutation_prediction.thermo_mpnn_d.thermompnn.protein_mpnn_utils import alt_parse_PDB, parse_PDB
+from mutation_prediction.thermo_mpnn_d.thermompnn.datasets.dataset_utils import (
+    Mutation,
+    seq1_index_to_seq2_index,
+    ALPHABET,
+)
 
 
 def tied_featurize_mut(batch, device='cpu', chain_dict=None, fixed_position_dict=None, omit_AA_dict=None, tied_positions_dict=None,
@@ -677,7 +681,7 @@ class MegaScaleDatasetv2(torch.utils.data.Dataset):
         """Batch retrieval fxn - each batch is list of protein-mutation pairs (can be different proteins)."""
         row = self.df.iloc[index]
 
-        pdb_loc = self.cfg.data_loc.rosetta_data
+        pdb_loc = self.cfg.data_loc.get('rosetta_data')
         wt_name = row.WT_name.rstrip(".pdb").replace("|",":")
         chain = 'A'  # all Rocklin proteins have chain A, since they're AF2 models
 
@@ -698,6 +702,8 @@ class MegaScaleDatasetv2(torch.utils.data.Dataset):
                 pdb = self.pdb_data[row.WT_name.removesuffix('.pdb')]
                 
             else: # double-rev
+                if pdb_loc is None:
+                    raise ValueError("data_loc.rosetta_data is required for augmented double mutations.")
                 # need to flip the wt and mutant AAs for file retrieval
                 wt_ros = mut_list[0]
                 pos_ros = pos_list[0] + 1
@@ -726,6 +732,8 @@ class MegaScaleDatasetv2(torch.utils.data.Dataset):
                 pdb = self.pdb_data[row.WT_name.removesuffix('.pdb')]
                 
             else: # single-rev
+                if pdb_loc is None:
+                    raise ValueError("data_loc.rosetta_data is required for augmented single mutations.")
                 pdb_file = os.path.join(pdb_loc, 
                                         wt_name, 
                                         'pdb_models', 

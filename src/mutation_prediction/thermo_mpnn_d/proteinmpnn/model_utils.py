@@ -16,7 +16,7 @@ import random
 import itertools
 
 import sys
-from proteinmpnn.rigid_utils import Rigid
+from mutation_prediction.thermo_mpnn_d.proteinmpnn.rigid_utils import Rigid
 
 
 def featurize(batch, device, side_chains=False):

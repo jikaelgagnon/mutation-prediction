@@ -1,16 +1,14 @@
-import sys
-import wandb
 import os
+import argparse
 from torch.utils.data import DataLoader
 
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
-from pytorch_lightning.loggers import WandbLogger
 from omegaconf import OmegaConf
 
-from thermompnn.parsers import get_v2_dataset
-from thermompnn.trainer.v2_trainer import TransferModelPLv2, TransferModelPLv2Siamese
-from thermompnn.datasets.v2_datasets import tied_featurize_mut
+from mutation_prediction.thermo_mpnn_d.thermompnn.parsers import get_v2_dataset
+from mutation_prediction.thermo_mpnn_d.thermompnn.trainer.v2_trainer import TransferModelPLv2, TransferModelPLv2Siamese
+from mutation_prediction.thermo_mpnn_d.thermompnn.datasets.v2_datasets import tied_featurize_mut
 
 
 def parse_cfg(cfg):
@@ -73,6 +71,8 @@ def train(cfg):
     cfg = parse_cfg(cfg)
 
     if cfg.project is not None:
+        import wandb
+
         wandb.init(project=cfg.project, name=cfg.name)
 
     train_dataset, val_dataset = get_v2_dataset(cfg)
@@ -97,13 +97,15 @@ def train(cfg):
     filename = cfg.name + '_{epoch:02d}_{val_ddG_spearman:.02}'
     monitor = f'val_ddG_spearman'
     
-    current_location = os.path.dirname(os.path.realpath(__file__))
-    checkpath = os.path.join(current_location, 'checkpoints/')
-    if not os.path.isdir(checkpath):
-        os.mkdir(checkpath)
+    checkpath = os.path.abspath(cfg.training.get('output_dir', 'checkpoints'))
+    os.makedirs(checkpath, exist_ok=True)
 
     checkpoint_callback = ModelCheckpoint(monitor=monitor, mode='max', dirpath=checkpath, filename=filename)
-    logger = WandbLogger(project=cfg.project, name="test", log_model=False) if cfg.project is not None else None
+    logger = None
+    if cfg.project is not None:
+        from pytorch_lightning.loggers import WandbLogger
+
+        logger = WandbLogger(project=cfg.project, name=cfg.name, log_model=False)
     n_steps = 100
     
     trainer = pl.Trainer(callbacks=[checkpoint_callback], 
@@ -118,10 +120,14 @@ def train(cfg):
     trainer.fit(model_pl, train_loader, val_loader) #, ckpt_path=cfg.training.ckpt)
 
 
-if __name__ == "__main__":
-    # config.yaml and local.yaml files are combined to assemble all runtime arguments
-    if len(sys.argv) != 3:
-        raise ValueError("Need to specify exactly two config files.")
-    
-    cfg = OmegaConf.merge(OmegaConf.load(sys.argv[1]), OmegaConf.load(sys.argv[2]))
+def main():
+    parser = argparse.ArgumentParser(description="Train a ThermoMPNN model.")
+    parser.add_argument("local_config", help="YAML with dataset/checkpoint paths")
+    parser.add_argument("training_config", help="YAML with model and training options")
+    args = parser.parse_args()
+    cfg = OmegaConf.merge(OmegaConf.load(args.local_config), OmegaConf.load(args.training_config))
     train(cfg)
+
+
+if __name__ == "__main__":
+    main()

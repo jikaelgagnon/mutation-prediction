@@ -3,22 +3,26 @@ import torch
 import torch.nn.functional as F
 from  torch import nn 
 
-from thermompnn.model.v2_model import TransferModelv2, TransferModelv2Siamese
-from thermompnn.trainer.trainer_utils import get_metrics
+from mutation_prediction.thermo_mpnn_d.thermompnn.model.v2_model import TransferModelv2, TransferModelv2Siamese
+from mutation_prediction.thermo_mpnn_d.thermompnn.trainer.trainer_utils import get_metrics
 
 
 class TransferModelPLv2(pl.LightningModule):
     """Batched trainer module"""
-    def __init__(self, cfg):
+    def __init__(self, cfg, *, protein_encoder=None, prediction_head=None):
         super().__init__()
-        self.model = TransferModelv2(cfg)
+        self.model = TransferModelv2(
+            cfg,
+            protein_encoder=protein_encoder,
+            prediction_head=prediction_head,
+        )
 
         self.cfg = cfg
         self.dev = torch.device("cuda:0" if (torch.cuda.is_available()) else "cpu")
         
         self.out = ['ddG']
         self.metrics = nn.ModuleDict()
-        for split in ("train_metrics", "val_metrics"):
+        for split in ("train_metrics", "val_metrics", "test_metrics"):
             self.metrics[split] = nn.ModuleDict()
             
             for out in self.out:
@@ -37,11 +41,11 @@ class TransferModelPLv2(pl.LightningModule):
             fwd_preds, _ = self(X, S, mask, chain_M, residue_idx, chain_encoding_all, mut_positions, mut_wildtype_AAs, mut_mutant_AAs, mut_ddGs, atom_mask)
             # modify seq and do reverse (mutant) pass
             backwd_preds, _ = self(X, S, mask, chain_M, residue_idx, chain_encoding_all, mut_positions, mut_mutant_AAs, mut_wildtype_AAs, mut_ddGs, atom_mask)
-            preds = fwd_preds - backwd_preds
+            preds = torch.sum(fwd_preds - backwd_preds, dim=-1, keepdim=True)
         else:
             X, S, mask, lengths, chain_M, chain_encoding_all, residue_idx, mut_positions, mut_wildtype_AAs, mut_mutant_AAs, mut_ddGs, atom_mask = batch
             preds, _ = self(X, S, mask, chain_M, residue_idx, chain_encoding_all, mut_positions, mut_wildtype_AAs, mut_mutant_AAs, mut_ddGs, atom_mask)
-            mse = F.mse_loss(preds, mut_ddGs)
+        mse = F.mse_loss(preds, mut_ddGs)
 
         for out in self.out:
             for metric in self.metrics[f"{prefix}_metrics"][out].values():
@@ -74,7 +78,8 @@ class TransferModelPLv2(pl.LightningModule):
     def configure_optimizers(self):
         
         if not self.cfg.model.freeze_weights: # fully unfrozen ProteinMPNN
-            param_list = [{"params": self.model.prot_mpnn.parameters(), "lr": self.cfg.training.mpnn_learn_rate}]
+            mpnn_lr = self.cfg.training.mpnn_learn_rate or self.cfg.training.learn_rate
+            param_list = [{"params": self.model.prot_mpnn.parameters(), "lr": mpnn_lr}]
         else: # fully frozen MPNN
             param_list = []
 
@@ -100,7 +105,7 @@ class TransferModelPLv2(pl.LightningModule):
         opt = torch.optim.AdamW(param_list, lr=self.cfg.training.learn_rate)
 
         if self.cfg.training.lr_schedule: # enable additional lr scheduler conditioned on val ddG mse
-            lr_sched = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=opt, verbose=True, mode='min', factor=0.5)
+            lr_sched = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=opt, mode='min', factor=0.5)
             print('Enabled LR Schedule!')
             return {
                 'optimizer': opt,
@@ -113,10 +118,14 @@ class TransferModelPLv2(pl.LightningModule):
 
 class TransferModelPLv2Siamese(pl.LightningModule):
     """Batched trainer module"""
-    def __init__(self, cfg):
+    def __init__(self, cfg, *, protein_encoder=None, prediction_head=None):
         super().__init__()
         print('Multi-mutant siamese network enabled!')
-        self.model = TransferModelv2Siamese(cfg)
+        self.model = TransferModelv2Siamese(
+            cfg,
+            protein_encoder=protein_encoder,
+            prediction_head=prediction_head,
+        )
         self.cfg = cfg
         self.dev = torch.device("cuda:0" if (torch.cuda.is_available()) else "cpu")
         self.ALPHA = self.cfg.model.alpha # weight for avg MSE loss term
@@ -124,7 +133,7 @@ class TransferModelPLv2Siamese(pl.LightningModule):
         print('Relative loss weights:\nALPHA:\t%s\nBETA:\t%s' % (str(self.ALPHA), str(self.BETA)))
         self.out = ['ddG']
         self.metrics = nn.ModuleDict()
-        for split in ("train_metrics", "val_metrics"):
+        for split in ("train_metrics", "val_metrics", "test_metrics"):
             self.metrics[split] = nn.ModuleDict()
             
             for out in self.out:
@@ -182,7 +191,8 @@ class TransferModelPLv2Siamese(pl.LightningModule):
     def configure_optimizers(self):
         
         if not self.cfg.model.freeze_weights: # fully unfrozen ProteinMPNN
-            param_list = [{"params": self.model.prot_mpnn.parameters(), "lr": self.cfg.training.mpnn_learn_rate}]
+            mpnn_lr = self.cfg.training.mpnn_learn_rate or self.cfg.training.learn_rate
+            param_list = [{"params": self.model.prot_mpnn.parameters(), "lr": mpnn_lr}]
         else: # fully frozen MPNN
             param_list = []
 
@@ -197,7 +207,7 @@ class TransferModelPLv2Siamese(pl.LightningModule):
         opt = torch.optim.AdamW(param_list, lr=self.cfg.training.learn_rate)
 
         if self.cfg.training.lr_schedule: # enable additional lr scheduler conditioned on val ddG mse
-            lr_sched = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=opt, verbose=True, mode='min', factor=0.5)
+            lr_sched = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=opt, mode='min', factor=0.5)
             print('Enabled LR Schedule!')
             return {
                 'optimizer': opt,

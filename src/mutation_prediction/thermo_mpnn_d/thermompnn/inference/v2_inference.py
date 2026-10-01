@@ -6,9 +6,9 @@ from tqdm import tqdm
 import numpy as np
 import pandas as pd
 
-from thermompnn.datasets.v2_datasets import MegaScaleDatasetv2, FireProtDatasetv2, ddgBenchDatasetv2, tied_featurize_mut, ProteinGymDataset
-from thermompnn.inference.inference_utils import get_metrics_full
-from thermompnn.model.v2_model import batched_index_select
+from mutation_prediction.thermo_mpnn_d.thermompnn.datasets.v2_datasets import MegaScaleDatasetv2, FireProtDatasetv2, ddgBenchDatasetv2, tied_featurize_mut, ProteinGymDataset
+from mutation_prediction.thermo_mpnn_d.thermompnn.inference.inference_utils import get_metrics_full
+from mutation_prediction.thermo_mpnn_d.thermompnn.model.v2_model import batched_index_select
 
 
 def run_prediction_batched(name, model, dataset_name, dataset, results, keep=True, zero_shot=False, cfg=None):
@@ -18,13 +18,11 @@ def run_prediction_batched(name, model, dataset_name, dataset, results, keep=Tru
 
     max_batches = None
     metrics = {
-        "ddG": get_metrics_full(),
+        "ddG": get_metrics_full(device),
     }
-    for m in metrics['ddG'].values():
-        m = m.to(device)
     
     model = model.eval()
-    model = model.cuda()
+    model = model.to(device)
     
     print('Testing Model %s on dataset %s' % (name, dataset_name))
     preds, ddgs = [], []

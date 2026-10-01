@@ -8,18 +8,29 @@ authors = [
 ]
 requires-python = ">=3.13"
 dependencies = [
+    "biopython>=1.86",
     "ipykernel>=7.4.0",
     "lightning>=2.6.6",
+    "numpy>=2.0",
+    "omegaconf>=2.3.0",
     "pandas>=3.0.6",
     "pathlib>=1.0.1",
     "py3dmol>=2.5.5",
+    "scipy>=1.15",
     "torch>=2.14.0",
+    "torchmetrics>=1.7",
     "torchvision>=0.29.0",
+    "tqdm>=4.67",
     "zenodo-get>=3.1.0",
 ]
 
+[project.optional-dependencies]
+tracking = ["wandb>=0.19"]
+
 [project.scripts]
 mutation-prediction = "mutation_prediction:main"
+thermompnn-train = "mutation_prediction.thermo_mpnn_d.thermompnn.train_thermompnn:main"
+thermompnn-infer = "mutation_prediction.thermo_mpnn_d.thermompnn.inference.run_inference:main"
 
 [build-system]
 requires = ["uv_build>=0.12.20,<0.13.0"]

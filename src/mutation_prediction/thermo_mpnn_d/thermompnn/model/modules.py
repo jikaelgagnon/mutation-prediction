@@ -5,8 +5,14 @@ import math
 import os
 import numpy as np
 
-from thermompnn.protein_mpnn_utils import ProteinMPNN
-from thermompnn.protein_mpnn_utils import gather_nodes, gather_edges, DecLayer, cat_neighbors_nodes, PositionWiseFeedForward
+from mutation_prediction.thermo_mpnn_d.thermompnn.protein_mpnn_utils import ProteinMPNN
+from mutation_prediction.thermo_mpnn_d.thermompnn.protein_mpnn_utils import (
+    gather_nodes,
+    gather_edges,
+    DecLayer,
+    cat_neighbors_nodes,
+    PositionWiseFeedForward,
+)
 
 
 def get_protein_mpnn(cfg, version='v_48_020.pt'):
@@ -473,4 +479,3 @@ class MPNNLayer(nn.Module):
             mask_V = mask_V.unsqueeze(-1)
             h_V = mask_V * h_V
         return h_V
-

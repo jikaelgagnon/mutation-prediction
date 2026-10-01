@@ -1,4 +1,4 @@
-from thermompnn.datasets.v2_datasets import MegaScaleDatasetv2
+from mutation_prediction.thermo_mpnn_d.thermompnn.datasets.v2_datasets import MegaScaleDatasetv2
 
 
 def get_v2_dataset(cfg):

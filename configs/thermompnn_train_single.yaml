@@ -1,0 +1,27 @@
+data:
+  dataset: megascale
+  mut_types: [single]
+  splits: [train, val]
+
+data_loc:
+  megascale_csv: data/raw/megascale/csv/Megascale-S-full.csv
+
+training:
+  num_workers: 4
+  output_dir: checkpoints/thermompnn-single
+  learn_rate: 0.00001
+  epochs: 100
+  lr_schedule: true
+  batch_size: 128
+  shuffle: true
+
+model:
+  hidden_dims: [64, 32]
+  subtract_mut: true
+  mutant_embedding: false
+  single_target: false
+  num_final_layers: 2
+  freeze_weights: true
+  load_pretrained: true
+  lightattn: true
+  proteinmpnn_dropout: 0.0

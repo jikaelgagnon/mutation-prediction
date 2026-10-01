@@ -1,0 +1,8 @@
+platform:
+  accel: auto
+  # Root directory of the copied ThermoMPNN-D repository, containing vanilla_model_weights/.
+  thermompnn_dir: tmp/ThermoMPNN-D
+
+data_loc:
+  megascale_splits: data/raw/megascale/splits.pkl
+  megascale_pdbs: data/raw/megascale/pdb

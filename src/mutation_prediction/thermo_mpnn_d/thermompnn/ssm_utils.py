@@ -5,8 +5,8 @@ import numpy as np
 from Bio.PDB import PDBParser
 from omegaconf import OmegaConf
 from scipy.spatial.distance import cdist
-from thermompnn.train_thermompnn import parse_cfg
-from thermompnn.trainer.v2_trainer import TransferModelPLv2, TransferModelPLv2Siamese
+from mutation_prediction.thermo_mpnn_d.thermompnn.train_thermompnn import parse_cfg
+from mutation_prediction.thermo_mpnn_d.thermompnn.trainer.v2_trainer import TransferModelPLv2, TransferModelPLv2Siamese
 from tqdm import tqdm
 
 

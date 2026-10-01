@@ -6,20 +6,20 @@ import argparse
 import omegaconf as OmegaConf
 import pandas as pd
 
-from thermompnn.model.modules import get_protein_mpnn
-from thermompnn.protein_mpnn_utils import tied_featurize
+from mutation_prediction.thermo_mpnn_d.thermompnn.model.modules import get_protein_mpnn
+from mutation_prediction.thermo_mpnn_d.thermompnn.protein_mpnn_utils import tied_featurize
 
 
 ALPHABET = 'ACDEFGHIKLMNPQRSTVWYX'
 
 
-def get_metrics_full():
+def get_metrics_full(device=None):
     return {
-        "r2": R2Score().to('cuda'),
-        "mse": MeanSquaredError(squared=True).to('cuda'),
-        "rmse": MeanSquaredError(squared=False).to('cuda'),
-        "spearman": SpearmanCorrCoef().to('cuda'),
-        "pearson":  PearsonCorrCoef().to('cuda'),
+        "r2": R2Score().to(device),
+        "mse": MeanSquaredError(squared=True).to(device),
+        "rmse": MeanSquaredError(squared=False).to(device),
+        "spearman": SpearmanCorrCoef().to(device),
+        "pearson": PearsonCorrCoef().to(device),
     }
 
 

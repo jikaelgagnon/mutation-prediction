@@ -5,8 +5,15 @@ import torch.utils
 import torch.nn as nn
 import torch.nn.functional as F
 
-from proteinmpnn.model_utils import ProteinFeatures, EncLayer, DecLayer, IPMPDecoder, IPMPEncoder
-from proteinmpnn.model_utils import gather_nodes, cat_neighbors_nodes
+from mutation_prediction.thermo_mpnn_d.proteinmpnn.model_utils import (
+    ProteinFeatures,
+    EncLayer,
+    DecLayer,
+    IPMPDecoder,
+    IPMPEncoder,
+    gather_nodes,
+    cat_neighbors_nodes,
+)
 
 """
 Copied model class from proteinmpnn.model_utils 
