@@ -1,4 +1,12 @@
+"""Structure parsing, mutation batching, and ProteinMPNN model implementation.
+
+Paper map: turns protein coordinates into the graph/sequence features used by
+the structural encoder and exposes its residue representations to the
+ThermoMPNN-D transfer head in ``model.v2_model``.
+"""
+
 from __future__ import print_function
+
 import json, time
 import numpy as np
 import torch

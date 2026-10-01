@@ -1,3 +1,11 @@
+"""Single- and multi-mutant ThermoMPNN-D prediction architectures.
+
+Paper map: ``TransferModelv2`` follows the single-mutant encoder/readout path
+in ThermoMPNN Fig. 1A. ``TransferModelv2Siamese`` implements the double-mutant
+extension's AB/BA order-specific predictions (preprint Fig. 1A-C). Optional
+distance, edge, attention, and side-chain features are wired here.
+"""
+
 import torch
 import torch.nn as nn
 from itertools import permutations

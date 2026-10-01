@@ -1,4 +1,12 @@
+"""Mutation records and residue-index mapping helpers.
+
+Paper map: keeps each experimental substitution (site, wild-type residue,
+mutant residue, and measured stability change) aligned to the corresponding
+structure sequence before model featurization.
+"""
+
 from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Optional
 
@@ -41,4 +49,3 @@ def seq1_index_to_seq2_index(align, index):
         return None
 
     return seq2_idx
-

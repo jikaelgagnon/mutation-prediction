@@ -1,3 +1,10 @@
+"""ProteinMPNN data loading and standalone training support.
+
+Paper map: supplies clustered PDB datasets, batching, and optimizer helpers
+for the underlying structural sequence model; ThermoMPNN-D mutation datasets
+and their featurization live in ``thermompnn/datasets``.
+"""
+
 import torch
 from torch.utils.data import DataLoader
 import csv

@@ -1,3 +1,9 @@
+"""CLI entry point for evaluating a trained ThermoMPNN-D checkpoint.
+
+Paper map: selects the standard or Siamese Lightning wrapper, loads its
+checkpoint, and delegates batched prediction to ``v2_inference``.
+"""
+
 import torch
 import argparse
 from omegaconf import OmegaConf

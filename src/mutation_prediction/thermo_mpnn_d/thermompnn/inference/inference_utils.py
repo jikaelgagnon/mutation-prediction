@@ -1,3 +1,9 @@
+"""Inference metrics and structural-context diagnostics.
+
+Paper map: evaluates predicted versus measured stability changes and provides
+a residue-neighborhood count used to describe mutation-site context.
+"""
+
 import torch
 from torch import nn
 from torchmetrics import R2Score, MeanSquaredError, SpearmanCorrCoef, PearsonCorrCoef

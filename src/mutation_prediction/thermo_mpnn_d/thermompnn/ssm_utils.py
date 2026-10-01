@@ -1,3 +1,9 @@
+"""Helpers for saturation mutagenesis scans on supplied protein structures.
+
+Paper map: applies ThermoMPNN-D across candidate substitutions and maps input
+mutation positions to PDB residue numbering, with optional structural filters.
+"""
+
 import os
 import re
 

@@ -1,3 +1,10 @@
+"""Rigid-frame geometry helpers for ProteinMPNN structure features.
+
+Paper map: converts backbone coordinates into local rotations/translations
+used by the structure-aware encoder; it is supporting geometry, not a
+mutation-effect prediction head.
+"""
+
 from typing import Tuple, Optional, Any, Callable, Sequence
 import torch
 import numpy as np

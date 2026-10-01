@@ -1,4 +1,12 @@
+"""ProteinMPNN geometry, graph-message-passing layers, and encoder.
+
+Paper map: this is the structural sequence-model foundation used to produce
+residue embeddings for ThermoMPNN-D. The mutation-specific transfer head is in
+``thermompnn/model/v2_model.py``.
+"""
+
 from __future__ import print_function
+
 import json, time, os, sys, glob
 import shutil
 import numpy as np

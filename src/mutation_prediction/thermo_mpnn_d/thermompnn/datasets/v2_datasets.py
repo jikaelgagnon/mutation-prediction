@@ -1,3 +1,10 @@
+"""ThermoMPNN-D experimental datasets and mutation-aware batch featurization.
+
+Paper map: dataset classes load measured stability changes alongside protein
+structures; ``tied_featurize_mut`` forms the padded sequence/coordinate and
+mutation tensors passed to the transfer model.
+"""
+
 import torch
 import pandas as pd
 import numpy as np

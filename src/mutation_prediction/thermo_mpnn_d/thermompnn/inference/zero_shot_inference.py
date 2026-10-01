@@ -1,3 +1,9 @@
+"""CLI for ProteinMPNN sequence-probability zero-shot baselines.
+
+Paper map: contrasts transfer-trained stability predictions with a baseline
+derived from ProteinMPNN's amino-acid log probabilities at mutation sites.
+"""
+
 import torch
 import argparse
 from omegaconf import OmegaConf

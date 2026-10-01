@@ -1,3 +1,10 @@
+"""Evaluate a standalone ProteinMPNN checkpoint.
+
+Paper map: reports sequence-recovery/perplexity behavior of the encoder
+foundation; ThermoMPNN-D mutation-effect evaluation is under
+``thermompnn.inference``.
+"""
+
 import argparse
 
 import numpy as np

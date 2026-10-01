@@ -1,3 +1,10 @@
+"""Command-line training pipeline for ThermoMPNN-D.
+
+Paper map: assembles configured mutation datasets and the standard or Siamese
+transfer model, then trains against measured stability changes and selects
+checkpoints by validation Spearman correlation.
+"""
+
 import os
 import argparse
 from torch.utils.data import DataLoader

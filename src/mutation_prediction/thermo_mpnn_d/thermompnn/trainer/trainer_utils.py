@@ -1,3 +1,9 @@
+"""Metric collections used to compare predictions with measured effects.
+
+Paper map: reports regression performance for the experimental stability
+change target during model training and evaluation.
+"""
+
 from torchmetrics import R2Score, MeanSquaredError, SpearmanCorrCoef, F1Score
 from torchmetrics.functional import r2_score, mean_squared_error, pearson_corrcoef
 

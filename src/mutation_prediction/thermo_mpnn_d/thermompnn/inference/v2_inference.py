@@ -1,3 +1,10 @@
+"""Batched ThermoMPNN-D prediction and dataset loading.
+
+Paper map: featurizes mutation examples, runs the trained transfer or
+zero-shot sequence-probability model, and collects predictions and regression
+metrics for the stability-change target.
+"""
+
 import torch
 from torch.utils.data import DataLoader
 

@@ -1,3 +1,9 @@
+"""Standalone ProteinMPNN training entry point.
+
+Paper map: trains the upstream structural sequence model used as
+ThermoMPNN-D's encoder, rather than the mutation-stability transfer head.
+"""
+
 import argparse
 import os.path
 

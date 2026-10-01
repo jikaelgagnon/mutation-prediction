@@ -1,3 +1,9 @@
+"""Plot standalone ProteinMPNN training/evaluation scores.
+
+Paper map: a diagnostic for the encoder pretraining workflow, not part of
+ThermoMPNN-D's mutation-effect model.
+"""
+
 import os
 
 

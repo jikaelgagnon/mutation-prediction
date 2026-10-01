@@ -1,3 +1,11 @@
+"""Supervised Lightning training wrappers for the ThermoMPNN-D heads.
+
+Paper map: computes prediction-versus-measurement loss, tracks validation
+metrics, and optimizes the transfer head (and optionally the ProteinMPNN
+encoder); the Siamese wrapper trains both mutation orders with the symmetry
+loss described in the double-mutant extension.
+"""
+
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F

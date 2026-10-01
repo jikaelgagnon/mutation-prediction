@@ -1,3 +1,10 @@
+"""Reusable encoder, attention, and feature-fusion modules for ThermoMPNN-D.
+
+Paper map: loads pretrained ProteinMPNN and supplies optional local
+attention/side-chain feature paths used before the mutation-effect readout.
+The complete single- and multi-mutant heads are in ``v2_model.py``.
+"""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

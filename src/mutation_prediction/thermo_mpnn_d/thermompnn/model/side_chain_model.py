@@ -1,4 +1,12 @@
+"""ProteinMPNN variant that consumes side-chain atom coordinates.
+
+Paper map: implements the optional side-chain-aware structural encoder path;
+the ThermoMPNN-D mutation-site prediction heads that consume its embeddings
+are in ``v2_model.py``.
+"""
+
 from __future__ import print_function
+
 import torch
 
 import torch.utils
@@ -14,12 +22,6 @@ from mutation_prediction.thermo_mpnn_d.proteinmpnn.model_utils import (
     gather_nodes,
     cat_neighbors_nodes,
 )
-
-"""
-Copied model class from proteinmpnn.model_utils 
-only changes are decoding order/visibility and returned arguments
-"""
-
 
 class ProteinMPNN(nn.Module):
     def __init__(self, num_letters=21, node_features=128, edge_features=128,
