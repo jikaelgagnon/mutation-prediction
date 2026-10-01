@@ -170,7 +170,7 @@ def parse_PDB(path_to_pdb, input_chain_list=None, ca_only=False, side_chains=Fal
             xyz, seq = parse_PDB_biounits(biounit, atoms=sidechain_atoms, chain=letter)
 
             if type(xyz) != str:
-                concat_seq += seq[0]
+                concat_seq += seq[0] # sequence for the chain
                 my_dict['seq_chain_' + letter] = seq[0]
                 coords_dict_chain = {}
                 if ca_only:

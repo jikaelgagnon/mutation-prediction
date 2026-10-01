@@ -4,7 +4,6 @@
 
 ### Dependencies
 
-### Setup
 
 This project uses [uv](https://docs.astral.sh/uv/) for Python dependency management.
 
@@ -57,6 +56,10 @@ This project uses [uv](https://docs.astral.sh/uv/) for Python dependency managem
    ```
    This will automatically add the dependency for in `pyproject.toml`, and other users can install
    via `uv sync`
+
+### Data
+
+The dataset was downloaded from Zenodo; specifically, we use the MegaScale dataset. The data is gitignored. To download the data and explore it, run [ThermoMPNN_D_Data_Exploration.ipynb](playground/ThermoMPNN_D_Data_Exploration.ipynb).
 
 
 ## Training ThermoMPNN

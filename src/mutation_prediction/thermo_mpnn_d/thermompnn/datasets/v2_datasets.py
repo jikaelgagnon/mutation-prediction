@@ -599,6 +599,7 @@ class MegaScaleDatasetv2(torch.utils.data.Dataset):
                 print('Generated %s augmented double mutations' % str(double_aug.shape[0]))
                 double_aug['DIRECT'] = False
                 self.df = pd.concat([self.df, double_aug], axis=0).reset_index(drop=True)
+        # NORMAL PATH
         else:
             fname = self.cfg.data_loc.megascale_csv
             # only load rows needed to save memory
@@ -629,10 +630,18 @@ class MegaScaleDatasetv2(torch.utils.data.Dataset):
             self.df = pd.concat(mut_list, axis=0).reset_index(drop=True)  # this includes points missing structure data
             
             # load splits produced by mmseqs clustering
+        
             with open(self.cfg.data_loc.megascale_splits, 'rb') as f:
                 splits = pickle.load(f)
-
-            self.wt_names = splits[self.split]
+                
+            """ex:
+            {
+                "train": ["protein_A.pdb", "protein_B.pdb"],
+                "val":   ["protein_C.pdb"],
+                "test":  ["protein_D.pdb"]
+            }
+            """
+            self.wt_names = splits[self.split] # specific list from splits. eg. ["protein_A.pdb", "protein_B.pdb"]
 
             # pre-loading wildtype structures - can avoid later file I/O for 50% of data points
             self.side_chains = self.cfg.data.get('side_chains', False)
