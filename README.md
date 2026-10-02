@@ -77,8 +77,8 @@ Lightning training modules are in
 implementation from [Kuhlman-Lab/ThermoMPNN-D](https://github.com/Kuhlman-Lab/ThermoMPNN-D)
 and its pretrained ProteinMPNN weights; the included ThermoMPNN-D license is
 in `src/mutation_prediction/thermo_mpnn_d/LICENSE`. The starter configs point
-to the included MegaScale files in `data/raw/megascale` and the copied
-ProteinMPNN weights in `tmp/ThermoMPNN-D`; edit
+to the included MegaScale files in `data/raw/megascale` and ProteinMPNN
+checkpoints in `checkpoints/proteinmpnn`; edit
 `configs/thermompnn_paths.example.yaml` only if those locations differ. Start
 with:
 
@@ -100,11 +100,10 @@ those structures are not in `data/raw/megascale`.
 
 The packaged implementation contains the reference ProteinMPNN encoder,
 standard ThermoMPNN head (`TransferModelv2`), Siamese/epistatic head
-(`TransferModelv2Siamese`), and side-chain-aware encoder. The reference
-single-mutant and epistatic checkpoints remain in `tmp/ThermoMPNN-D/model_weights`;
-the vanilla ProteinMPNN weights are in `tmp/ThermoMPNN-D/vanilla_model_weights`.
-This avoids duplicating large binary weights while letting the package load and
-benchmark the reference models.
+(`TransferModelv2Siamese`), and side-chain-aware encoder. ProteinMPNN
+checkpoints are in `checkpoints/proteinmpnn`; reference ThermoMPNN-D model
+checkpoints, when available, are separate files and are not interchangeable
+with the ProteinMPNN encoder weights.
 
 To evaluate a checkpoint on a configured dataset and save per-mutation
 predictions, run:

@@ -37,8 +37,7 @@ def get_protein_mpnn(cfg, version='v_48_020.pt'):
     else:
         use_IPMP = False
 
-    model_weight_dir = os.path.join(cfg.platform.thermompnn_dir, 'vanilla_model_weights')
-    checkpoint_path = os.path.join(model_weight_dir, version)
+    checkpoint_path = os.path.join(cfg.platform.thermompnn_dir, version)
     print('Loading model %s', checkpoint_path)
     checkpoint = torch.load(checkpoint_path, map_location='cpu') 
     
