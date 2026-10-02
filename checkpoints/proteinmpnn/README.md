@@ -3,23 +3,32 @@
 These files are pretrained **full-backbone ProteinMPNN** checkpoints from
 `Kuhlman-Lab/ThermoMPNN-D/vanilla_model_weights`.
 
-The filenames follow the pattern `v_<neighbors>_<noise>.pt`:
+The upstream ProteinMPNN README lists these full-backbone checkpoint names
+and explicitly explains `v_48_010` as using 48 edges and 0.10 Å coordinate
+noise. Interpreting the other suffixes as hundredths of an angstrom follows
+that naming pattern; the upstream README does not individually document each
+checkpoint's noise value.
+
+| File | Neighbors | Noise level |
+| --- | ---: | ---: |
+| `v_48_002.pt` | 48 | inferred: 0.02 Å |
+| `v_48_010.pt` | 48 | 0.10 Å (documented upstream) |
+| `v_48_020.pt` | 48 | inferred: 0.20 Å |
+| `v_48_030.pt` | 48 | inferred: 0.30 Å |
+
+The filename structure can be read as `v_<neighbors>_<noise>.pt`:
 
 - `48` is the number of neighboring residues used by the model.
-- The final three digits give the backbone-coordinate noise level used during
-  training, in hundredths of an angstrom.
+- The final three digits appear to encode the noise level in hundredths of an
+  angstrom, based on the explicitly documented `010` example.
 
-| File | Neighbors | Training noise |
-| --- | ---: | ---: |
-| `v_48_002.pt` | 48 | 0.02 Å |
-| `v_48_010.pt` | 48 | 0.10 Å |
-| `v_48_020.pt` | 48 | 0.20 Å |
-| `v_48_030.pt` | 48 | 0.30 Å |
+In ProteinMPNN, backbone noise is Gaussian perturbation applied to coordinates
+during training. These files are alternative pretrained encoders, not
+different ThermoMPNN-D prediction heads. ThermoMPNN-D's default is
+`v_48_020.pt`; set `model.version` in the config to select another checkpoint.
 
-The training noise is Gaussian perturbation applied to backbone coordinates
-while training ProteinMPNN, to encourage robustness to structural variation.
-These are alternative pretrained encoders, not different ThermoMPNN-D
-prediction heads. ThermoMPNN-D's default is `v_48_020.pt`; set
-`model.version` in the config to select another checkpoint.
+Sources:
 
-These weights seem to come from the `vanilla_model_weights` folder from the [ProteinMPNN repo](https://github.com/dauparas/ProteinMPNN).
+- [ProteinMPNN README](https://github.com/dauparas/ProteinMPNN), which lists
+  the checkpoint names and documents `v_48_010` as 48 edges and 0.10 Å noise.
+- [ThermoMPNN-D vanilla weights](https://github.com/Kuhlman-Lab/ThermoMPNN-D/tree/main/vanilla_model_weights).

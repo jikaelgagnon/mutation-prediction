@@ -62,7 +62,11 @@ This project uses [uv](https://docs.astral.sh/uv/) for Python dependency managem
 
 As an experiment, I wanted to try using [Marimo](https://docs.marimo.io/) notebooks for this project instead of typical Jupyter Notebooks, since they have some really cool visualization features (see this [example notebook](https://molab.marimo.io/notebooks/nb_jJiFFtznAy4BxkrrZA1o9b/app)).
 
-To get started using Marimo with this repo, simply install the VSCode extension. For a guide (including a video), see [their blog post](https://marimo.io/blog/vscode). An example of a Marimo notebook in this repo is [inspect_megascale_validation.py](playground/inspect_megascale_validation.py). Unlike IPython Notebooks, these save as `.py` files, making them easier to version control.
+To run a Marimo notebook, simply run
+
+```bash
+uv run --with marimo marimo edit path/to/python/file
+```
 
 ### Data
 
