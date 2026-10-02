@@ -11,6 +11,7 @@ dependencies = [
     "biopython>=1.86",
     "ipykernel>=7.4.0",
     "lightning>=2.6.6",
+    "marimo[recommended]>=0.25.1",
     "numpy>=2.0",
     "omegaconf>=2.3.0",
     "pandas>=3.0.6",
