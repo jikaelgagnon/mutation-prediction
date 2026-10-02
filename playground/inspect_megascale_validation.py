@@ -72,9 +72,12 @@ def _(dataset):
 
 @app.cell
 def _(sample):
-    from pprint import pprint
+    sample
+    return
 
-    pprint(sample)
+
+@app.cell
+def _():
     return
 
 
