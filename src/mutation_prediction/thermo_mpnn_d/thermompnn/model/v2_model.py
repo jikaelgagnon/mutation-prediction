@@ -420,22 +420,30 @@ class TransferModelv2Siamese(nn.Module):
         # check if S matches mut_wildtype_AAs - if not, overwrite it
         S = _check_sequence_match(S, mut_wildtype_AAs, mut_mutant_AAs, mut_positions)
         
+        X = torch.nan_to_num(X, nan=0.0) # [B, L, # atoms, 3]
+        
         # get MPNN embeddings
-        X = torch.nan_to_num(X, nan=0.0)
         all_mpnn_hid, wt_embed, _, mpnn_edges = self.prot_mpnn(X, S, mask, chain_M, residue_idx, chain_encoding_all)
 
         assert self.cfg.model.num_final_layers > 0
+        
+        # concatenate together the _last_ :self.cfg.model.num_final_layers hidden reps from ProteinMPNN
         all_mpnn_hid = torch.cat(all_mpnn_hid[:self.cfg.model.num_final_layers], -1) # [B, L, Embed * N]
 
+        # ENABLED IN THE PAPER
         # if enabled, get sequence embedding for mutant aa
         if self.cfg.model.mutant_embedding:
             # there are actually N sets of mutant sequences, so we need to run this N times
+            # mut_embed list contains the embeddings of each mutation
             mut_embed_list = []
             for m in range(mut_mutant_AAs.shape[-1]):
+                # embed each mutation identity using embedding matrix from 
+                # ProteinMPNN
                 mut_embed = self.prot_mpnn.W_s(mut_mutant_AAs[:, m])
                 mut_embed_list.append(mut_embed)
             mut_embed = torch.cat([m.unsqueeze(-1) for m in mut_embed_list], -1) # shape: (Batch, Embed, N_muts)
 
+        # ENABLED IN THE PAPER
         # if enabled, get edges between the two mutated residues
         if self.cfg.model.edges:  # add edges to input for gathering
             # E_idx is [B, K, L] and is a tensor of indices in X that should match neighbors of each residue

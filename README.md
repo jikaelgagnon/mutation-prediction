@@ -68,6 +68,8 @@ To run a Marimo notebook, simply run
 uv run --with marimo marimo edit path/to/python/file
 ```
 
+When prompted with `Run in a sandboxed venv containing this notebook's dependencies? [Y/n]` select `Y`.
+
 ### Data
 
 The dataset was downloaded from Zenodo; specifically, we use the MegaScale dataset. The data is gitignored. To download the data and explore it, run [ThermoMPNN_D_Data_Exploration.ipynb](playground/ThermoMPNN_D_Data_Exploration.ipynb).
