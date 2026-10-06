@@ -1,3 +1,6 @@
+project: mutation-prediction
+name: epistatic
+
 data:
   dataset: megascale
   mut_types: [double]
@@ -16,12 +19,9 @@ training:
   shuffle: true
 
 model:
-  hidden_dims: [128, 128]
-  mutant_embedding: true
-  single_target: true
-  num_final_layers: 2
-  freeze_weights: true
-  load_pretrained: true
+  mutant_embedding: true # indicates whether you should subtract embedding of mutant from WT
+  num_final_layers: 2 # number of proteinmpnn layers to extract from
+  freeze_weights: true # indicates whether proteinmpnn weights are frozen
+  load_pretrained: true # indicates whether to load a frozen proteinmpnn
   proteinmpnn_dropout: 0.0
-  edges: true
-  dropout: 0.1
+  dropout: 0.1 # dropout for the model
