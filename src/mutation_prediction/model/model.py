@@ -57,34 +57,8 @@ class PooledAttentionModel(nn.Module):
         self.prot_mpnn = protein_encoder if protein_encoder is not None else get_protein_mpnn(cfg)
 
         HIDDEN_DIM, EMBED_DIM, VOCAB_DIM = self._set_model_dims()
-        hid_sizes = [HIDDEN_DIM * 2]
-        hid_sizes += list(self.cfg.model.hidden_dims)
-        hid_sizes += [ VOCAB_DIM ]
-        self.HIDDEN_DIM = HIDDEN_DIM
-        print('MLP HIDDEN SIZES:', hid_sizes)
 
-        if self.cfg.model.lightattn:
-            self.light_attention = nn.Sequential()
-            # LayerNorm and project collected features down to 128-dimensions no matter what
-            self.light_attention.append(nn.LayerNorm(HIDDEN_DIM * self.cfg.model.num_final_layers + EMBED_DIM))  # do layer norm before MLP
-            self.light_attention.append(nn.Linear(HIDDEN_DIM * self.cfg.model.num_final_layers + EMBED_DIM, HIDDEN_DIM, bias=True)) # E down to 128 regardless
-            self.light_attention.append(nn.ReLU())
-            if self.cfg.model.dropout is not None:
-                self.light_attention.append(nn.Dropout(float(self.cfg.model.dropout)))
-
-        self.ddg_out = nn.Sequential()
-
-        # MLP section
-        for sz1, sz2 in zip(hid_sizes[:-1], hid_sizes[1:-1]):
-            self.ddg_out.append(nn.Linear(sz1, sz2))
-            self.ddg_out.append(nn.ReLU())
-            if self.cfg.model.dropout is not None:
-                self.ddg_out.append(nn.Dropout(float(self.cfg.model.dropout)))
-
-        # final output layer (no ReLU/dropout)
-        self.ddg_out.append(nn.Linear(hid_sizes[-2], hid_sizes[-1]))
-        if prediction_head is not None:
-            self.ddg_out = prediction_head
+        self.attn_pool = nn.Linear(EMBED_DIM * (self.cfg.num_final_layers + 1), 1)
 
     def forward(self, X, S, mask, chain_M, residue_idx, chain_encoding_all, mut_positions, mut_wildtype_AAs, mut_mutant_AAs, mut_ddGs, atom_mask, esm_emb=None):
         """Vectorized fwd function for arbitrary batches of mutations"""
