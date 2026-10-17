@@ -148,10 +148,11 @@ The pretrained ProteinMPNN checkpoints are included in `checkpoints/proteinmpnn/
 If your data or checkpoints are elsewhere, update the corresponding YAML paths.
 Relative paths are resolved from the directory where you run training.
 
-The best checkpoint, selected by the lowest validation ΔΔG mean squared error
-(`val_ddG_mse`), is saved in `checkpoints/model-no-aug/`. Its filename includes the run
+The best checkpoint, selected by the highest validation Spearman correlation
+(`val_ddG_spearman`), is saved in `checkpoints/model-no-aug/`. Its filename includes the run
 name, epoch, and validation score. Change `training.output_dir` or `name` in the
-training configuration to customize these outputs.
+training configuration to customize these outputs. The learning-rate scheduler
+continues to monitor validation MSE (`val_ddG_mse`).
 
 To enable Weights & Biases logging, uncomment the `project` setting in
 `configs/model_train_epistatic.yaml` and authenticate with W&B before training.

@@ -96,13 +96,13 @@ def train(cfg):
     model_pl = PooledAttentionModelPL(cfg)
     
     # additional params, logging, checkpoints for training
-    filename = cfg.name + '_{epoch:02d}_{val_ddG_mse:.4f}'
-    monitor = 'val_ddG_mse'
+    filename = cfg.name + '_{epoch:02d}_{val_ddG_spearman:.4f}'
+    monitor = 'val_ddG_spearman'
     
     checkpath = os.path.abspath(cfg.training.get('output_dir', 'checkpoints'))
     os.makedirs(checkpath, exist_ok=True)
 
-    checkpoint_callback = ModelCheckpoint(monitor=monitor, mode='min', dirpath=checkpath, filename=filename)
+    checkpoint_callback = ModelCheckpoint(monitor=monitor, mode='max', dirpath=checkpath, filename=filename)
     
     logger = None
     if cfg.project is not None:

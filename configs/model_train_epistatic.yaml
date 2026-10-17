@@ -15,7 +15,7 @@ training:
   learn_rate: 0.00001
   epochs: 100
   lr_schedule: true
-  batch_size: 128
+  batch_size: 256
   shuffle: true
 
 model:
