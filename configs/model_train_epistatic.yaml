@@ -1,4 +1,4 @@
-project: mutation-prediction
+# project: mutation-prediction
 name: epistatic
 
 data:

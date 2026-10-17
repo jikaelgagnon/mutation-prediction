@@ -1,15 +1,33 @@
+print("Starting imports", flush=True)
+
 import os
+print("Imported os", flush=True)
+
 import argparse
+print("Imported argparse", flush=True)
+
 from torch.utils.data import DataLoader
+print("Imported DataLoader", flush=True)
 
 import pytorch_lightning as pl
+print("Imported pytorch_lightning", flush=True)
+
 from pytorch_lightning.callbacks import ModelCheckpoint
+print("Imported ModelCheckpoint", flush=True)
+
 from omegaconf import OmegaConf
+print("Imported OmegaConf", flush=True)
 
 from mutation_prediction.thermo_mpnn_d.thermompnn.parsers import get_v2_dataset
-from mutation_prediction.model.model import PooledAttentionModel, PooledAttentionModelPL
-from mutation_prediction.thermo_mpnn_d.thermompnn.datasets.v2_datasets import tied_featurize_mut
+print("Imported get_v2_dataset", flush=True)
 
+from mutation_prediction.model.model import PooledAttentionModel, PooledAttentionModelPL
+print("Imported PooledAttentionModel and PooledAttentionModelPL", flush=True)
+
+from mutation_prediction.thermo_mpnn_d.thermompnn.datasets.v2_datasets import tied_featurize_mut
+print("Imported tied_featurize_mut", flush=True)
+
+print("All imports complete", flush=True)
 
 def parse_cfg(cfg):
     """
@@ -106,11 +124,14 @@ def train(cfg):
 
 
 def main():
+    print("Starting main function")
     parser = argparse.ArgumentParser(description="Train our new model.")
     parser.add_argument("local_config", help="YAML with dataset/checkpoint paths")
     parser.add_argument("training_config", help="YAML with model and training options")
     args = parser.parse_args()
+    print("Loading config")
     cfg = OmegaConf.merge(OmegaConf.load(args.local_config), OmegaConf.load(args.training_config))
+    print("Starting training")
     train(cfg)
 
 if __name__ == "__main__":

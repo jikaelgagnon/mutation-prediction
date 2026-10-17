@@ -5,6 +5,12 @@ data/*
 #wandb
 wandb
 
+#lightning
+lightning_logs/*
+
+#checkpoints
+checkpoints/*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
