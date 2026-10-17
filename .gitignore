@@ -11,6 +11,10 @@ lightning_logs/*
 #checkpoints
 checkpoints/*
 
+#slurm
+logs/
+slurm/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
