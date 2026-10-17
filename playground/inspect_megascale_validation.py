@@ -45,8 +45,12 @@ def _():
 
 @app.cell
 def _(MegaScaleDatasetv2, OmegaConf, Path, REPO_ROOT):
-    paths_cfg = OmegaConf.load(REPO_ROOT / "configs" / "thermompnn_paths.example.yaml")
-    dataset_cfg = OmegaConf.load(REPO_ROOT / "configs" / "thermompnn_train_single.yaml")
+    paths_cfg = OmegaConf.load(REPO_ROOT / "configs" / "proteinmpnn_paths.example.yaml")
+    dataset_cfg = OmegaConf.create({
+        "data": {"dataset": "megascale", "mut_types": ["single"],
+                 "splits": ["train", "val"]},
+        "data_loc": {"megascale_csv": "data/raw/megascale/csv/Megascale-S-full.csv"},
+    })
     cfg = OmegaConf.merge(paths_cfg, dataset_cfg)
 
     # Resolve paths relative to the repository, not the notebook's working directory.

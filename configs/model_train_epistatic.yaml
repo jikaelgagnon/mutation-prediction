@@ -1,5 +1,5 @@
 # project: mutation-prediction
-name: epistatic
+name: epistatic_no_aug
 
 data:
   dataset: megascale
@@ -11,7 +11,7 @@ data_loc:
 
 training:
   num_workers: 4
-  output_dir: checkpoints/model
+  output_dir: checkpoints/model-no-aug
   learn_rate: 0.00001
   epochs: 100
   lr_schedule: true

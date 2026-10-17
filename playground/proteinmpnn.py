@@ -87,8 +87,16 @@ def _():
 
 @app.cell
 def _(MegaScaleDatasetv2, OmegaConf, Path, parse_cfg, repo_root):
-    paths_cfg = OmegaConf.load(repo_root / "configs/thermompnn_paths.example.yaml")
-    double_cfg = OmegaConf.load(repo_root / "configs/thermompnn_train_epistatic.yaml")
+    paths_cfg = OmegaConf.load(repo_root / "configs/proteinmpnn_paths.example.yaml")
+    # Legacy ThermoMPNN-D settings are local to this exploration notebook.
+    double_cfg = OmegaConf.merge(
+        OmegaConf.load(repo_root / "configs/model_train_epistatic.yaml"),
+        {"model": {"hidden_dims": [128, 128], "subtract_mut": False,
+                   "single_target": True, "lightattn": True,
+                   "aggregation": "siamese", "alpha": 1.0,
+                   "beta": 1.0, "edges": True},
+         "training": {"output_dir": "checkpoints/thermompnn-epistatic"}},
+    )
     cfg = parse_cfg(OmegaConf.merge(paths_cfg, double_cfg))
 
     # Resolve configured data and checkpoint paths from the repository root.

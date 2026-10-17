@@ -121,12 +121,11 @@ structure processing, and standalone ProteinMPNN programs.
 
 ## Config files and data
 
-Run commands from the repository root. The example file
-`configs/thermompnn_paths.example.yaml` specifies where to find the MegaScale
-data and pretrained ProteinMPNN files. Training options are in
-`configs/thermompnn_train_single.yaml` and
-`configs/thermompnn_train_epistatic.yaml`. The repository's main README has
-the commands to start training or prediction.
+The shared paths file `configs/proteinmpnn_paths.example.yaml` specifies the
+MegaScale data and pretrained ProteinMPNN locations. The root `configs/` folder
+contains training configs for the pooled-attention model; see the main README
+for its commands. Legacy ThermoMPNN-D settings are kept directly in the
+playground notebooks rather than separate training configs.
 
 By default, training keeps the pretrained ProteinMPNN part fixed and learns
 the mutation-prediction part. To also update ProteinMPNN during training, set

@@ -103,7 +103,7 @@ def _():
 
 @app.cell
 def _(OmegaConf, Path, repo_root):
-    paths_cfg = OmegaConf.load(repo_root / "configs/thermompnn_paths.example.yaml")
+    paths_cfg = OmegaConf.load(repo_root / "configs/proteinmpnn_paths.example.yaml")
     model_cfg = OmegaConf.load(repo_root / "configs/model_train_epistatic.yaml")
     cfg = OmegaConf.merge(paths_cfg, model_cfg)
 

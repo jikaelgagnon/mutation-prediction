@@ -1,5 +1,8 @@
 # Mutation Prediction
-test
+
+Predict protein stability changes from mutations using our pooled-attention model
+with a pretrained ProteinMPNN encoder.
+
 ## Setup
 
 ### Dependencies
@@ -55,8 +58,8 @@ This project uses [uv](https://docs.astral.sh/uv/) for Python dependency managem
    ```bash
    uv add numpy
    ```
-   This will automatically add the dependency for in `pyproject.toml`, and other users can install
-   via `uv sync`
+   This updates `pyproject.toml` and `uv.lock`; other users can install the dependency
+   with `uv sync`.
 
 #### Using Marimo
 
@@ -70,69 +73,116 @@ uv run --with marimo marimo edit path/to/python/file
 
 When prompted with `Run in a sandboxed venv containing this notebook's dependencies? [Y/n]` select `Y`.
 
-### Data
-
-The dataset was downloaded from Zenodo; specifically, we use the MegaScale dataset. The data is gitignored. To download the data and explore it, run [ThermoMPNN_D_Data_Exploration.ipynb](playground/ThermoMPNN_D_Data_Exploration.ipynb).
+## Download the data
 
 
-## Training ThermoMPNN
-
-The ProteinMPNN encoder, ThermoMPNN mutation head, dataset featurization, and
-Lightning training modules are in
-`mutation_prediction.thermo_mpnn_d.thermompnn`. Training uses the copied
-implementation from [Kuhlman-Lab/ThermoMPNN-D](https://github.com/Kuhlman-Lab/ThermoMPNN-D)
-and its pretrained ProteinMPNN weights; the included ThermoMPNN-D license is
-in `src/mutation_prediction/thermo_mpnn_d/LICENSE`. The starter configs point
-to the included MegaScale files in `data/raw/megascale` and ProteinMPNN
-checkpoints in `checkpoints/proteinmpnn`; edit
-`configs/thermompnn_paths.example.yaml` only if those locations differ. Start
-with:
+[playground/download_data.py](playground/download_data.py) downloads the MegaScale archive
+from Zenodo record `13345274` into `data/raw/megascale/`, and Rosetta
+single-mutant structures into `data/raw/megascale-rosetta/`. Each archive is
+deleted after extraction. Paths are resolved relative to the script.
+Rosetta structures are needed only for augmented training. The Rosetta archive is huge, so don't download unless neccesary.
+For the default, unaugmented setup, download only MegaScale with:
 
 ```bash
-uv run thermompnn-train configs/thermompnn_paths.example.yaml configs/thermompnn_train_single.yaml
+uv run python -c "from playground.download_data import get_megascale; get_megascale()"
 ```
 
-For the double-mutant Siamese architecture, use
-`configs/thermompnn_train_epistatic.yaml` as the second config. Both
-training configs can be edited without changing model code. Add `--extra
-tracking` when syncing dependencies if you set a W&B `project` in the YAML.
-The starter config freezes the pretrained ProteinMPNN encoder and learns the
-ThermoMPNN prediction layers; set `model.freeze_weights: false` to fine-tune
-the encoder too, optionally setting `training.mpnn_learn_rate` separately.
-The double-mutant config uses the direct measured double-mutant examples
-available in the included CSV. The paper's optional `double-aug` training also
-needs mutation-specific modeled structures from a separate Rosetta dataset;
-those structures are not in `data/raw/megascale`.
-
-The packaged implementation contains the reference ProteinMPNN encoder,
-standard ThermoMPNN head (`TransferModelv2`), Siamese/epistatic head
-(`TransferModelv2Siamese`), and side-chain-aware encoder. ProteinMPNN
-checkpoints are in `checkpoints/proteinmpnn`; reference ThermoMPNN-D model
-checkpoints, when available, are separate files and are not interchangeable
-with the ProteinMPNN encoder weights.
-
-To evaluate a checkpoint on a configured dataset and save per-mutation
-predictions, run:
+For the the full dataset, run
 
 ```bash
-uv run thermompnn-infer \
-  --model tmp/ThermoMPNN-D/model_weights/ThermoMPNN-ens1.ckpt \
-  --config configs/thermompnn_train_single.yaml \
-  --local configs/thermompnn_paths.example.yaml \
-  --keep_preds
+uv run python playground/download_data.py
 ```
 
-Use `ThermoMPNN-D-ens1.ckpt` with `configs/thermompnn_train_epistatic.yaml`
-for the Siamese/epistatic model. The CSV contains `ddG_pred`, `ddG_true`,
-`batch`, `mut_type`, and `WT_name`, allowing predictions from a new model to
-be compared against the same dataset and reference checkpoint.
+Training expects the following extracted files and directories:
 
-The model components are ordinary PyTorch modules: `TransferModelv2` exposes
-`prot_mpnn`, `light_attention`, `side_chain_features` (when enabled), and
-`ddg_out`. Replace a component with a shape-compatible `nn.Module`, or pass a
-custom `protein_encoder` or `prediction_head` when constructing
-`TransferModelv2(cfg, ...)` or its Lightning wrapper
-`TransferModelPLv2(cfg, ...)`. The Siamese implementations offer the same
-injection points. Dataset batches have the 12-tensor layout built by
-`tied_featurize_mut`; retain that interface when swapping model components if
-using the supplied Trainer.
+```text
+data/raw/megascale/
+├── csv/Megascale-D-full.csv
+├── pdb/
+└── splits.pkl
+```
+
+Data is gitignored. The script skips downloading if `data/raw/megascale/` already
+exists and is nonempty; it does not verify that an earlier download is complete.
+
+## Train our model
+
+Our model code lives in [`src/mutation_prediction/model/model.py`](src/mutation_prediction/model/model.py):
+
+- `PooledAttentionModel` extracts ProteinMPNN features at mutated residues, pools
+  them with learned attention, and predicts one ΔΔG per example.
+- `PooledAttentionModelPL` wraps the model with the training loss, evaluation
+  metrics, optimizer, and learning-rate scheduler.
+
+[`src/mutation_prediction/model/train.py`](src/mutation_prediction/model/train.py)
+loads the YAML configuration, builds the data loaders, and launches training.
+
+Run [the training entry point](src/mutation_prediction/model/train.py) from the
+repository root:
+
+```bash
+uv run python -m mutation_prediction.model.train \
+  configs/proteinmpnn_paths.example.yaml \
+  configs/model_train_epistatic.yaml
+```
+
+This trains `PooledAttentionModel` on the MegaScale double-mutant training and
+validation splits. By default, the pretrained ProteinMPNN encoder is frozen and
+the pooled-attention prediction layers are trained for 100 epochs with a batch
+size of 128 and a learning rate of `0.00001`.
+
+The command takes two positional YAML files. Settings in the second file override
+those in the first:
+
+- [Paths and hardware](configs/proteinmpnn_paths.example.yaml): dataset split and
+  PDB paths, the ProteinMPNN checkpoint directory (`checkpoints/proteinmpnn`), and
+  `platform.accel` (`auto` by default; set `cpu` or `gpu` to choose explicitly).
+  The internal `platform.thermompnn_dir` key is retained for loader compatibility;
+  it points to ProteinMPNN checkpoints.
+- [Model and training options](configs/model_train_epistatic.yaml): the dataset
+  CSV path, mutation types, model settings, batch size, learning rate, epoch count,
+  data-loader workers, and output directory. Reduce `training.batch_size` if you
+  run out of memory. Set `model.freeze_weights: false` to fine-tune the encoder.
+
+The pretrained ProteinMPNN checkpoints are included in `checkpoints/proteinmpnn/`.
+If your data or checkpoints are elsewhere, update the corresponding YAML paths.
+Relative paths are resolved from the directory where you run training.
+
+The best checkpoint, selected by the lowest validation ΔΔG mean squared error
+(`val_ddG_mse`), is saved in `checkpoints/model-no-aug/`. Its filename includes the run
+name, epoch, and validation score. Change `training.output_dir` or `name` in the
+training configuration to customize these outputs.
+
+To enable Weights & Biases logging, uncomment the `project` setting in
+`configs/model_train_epistatic.yaml` and authenticate with W&B before training.
+With `project` omitted, W&B logging is disabled.
+
+## Training configurations
+
+Only three configs are needed for our model:
+
+| Config | Purpose |
+| --- | --- |
+| `configs/proteinmpnn_paths.example.yaml` | Shared data paths, ProteinMPNN checkpoints, and device selection. |
+| `configs/model_train_epistatic.yaml` | Measured double mutants only, without augmentation. |
+| `configs/model_train_epistatic_augmented.yaml` | Measured doubles plus biased augmentation (`range: 3`). |
+
+For augmented training, prepare `data/raw/megascale/csv/Megascale-SD-full.csv`
+by combining `Megascale-S-full.csv` and `Megascale-D-full.csv`, preserving their
+columns and original ΔΔG signs. The downloader does not create this combined CSV.
+Also extract the Rosetta archive using the full download command above. Then run:
+
+```bash
+uv run python -m mutation_prediction.model.train \
+  configs/proteinmpnn_paths.example.yaml \
+  configs/model_train_epistatic_augmented.yaml
+```
+
+Augmented checkpoints are saved to `checkpoints/model-biased-aug/`. The loader
+uses separate protein splits and augments both training and validation with
+this configuration. Use `mut_types: [double]` for final evaluation on measured
+double mutants. `data.seed: 42` controls augmentation sampling only; it is an
+arbitrary reproducibility seed, not a seed specified in the paper.
+
+The older ThermoMPNN training configs were removed; the playground notebooks
+keep their legacy model settings locally.
