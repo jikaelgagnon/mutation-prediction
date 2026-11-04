@@ -147,12 +147,45 @@ exists and is nonempty; it does not verify that an earlier download is complete.
 
 ## Train our model
 
-Our model code lives in [`src/mutation_prediction/model/model.py`](src/mutation_prediction/model/model.py):
+Our model has three independent PyTorch modules:
 
-- `PooledAttentionModel` extracts ProteinMPNN features at mutated residues, pools
-  them with learned attention, and predicts one ΔΔG per example.
-- `PooledAttentionModelPL` wraps the model with the training loss, evaluation
-  metrics, optimizer, and learning-rate scheduler.
+- [`ProteinMPNNFeatureExtractor`](src/mutation_prediction/model/features.py)
+  returns `final_embed` with shape `[batch, mutations, features]`. Each mutation
+  gets the last K ProteinMPNN decoder states concatenated with its WT amino-acid
+  embedding, optionally minus the mutant embedding. `output_dim` gives the
+  feature width (384 with K = 2 and the pretrained encoder).
+- [`PooledAttentionHead`](src/mutation_prediction/model/heads.py) consumes that
+  tensor, pools across mutations, and predicts one ΔΔG per example, `[batch, 1]`.
+- [`MutationPredictionModel`](src/mutation_prediction/model/model.py) connects
+  any compatible feature extractor and prediction head.
+
+```python
+from mutation_prediction.model import (
+    MutationPredictionModel,
+    PooledAttentionHead,
+    PooledAttentionModelPL,
+    ProteinMPNNFeatureExtractor,
+)
+
+features = ProteinMPNNFeatureExtractor(cfg)
+head = PooledAttentionHead(features.output_dim)
+model = MutationPredictionModel(features, head)
+training_module = PooledAttentionModelPL(cfg, model=model)
+```
+
+Replace `head` with any `nn.Module` that maps `[batch, mutations, features]` to
+`[batch, 1]` to try another architecture. The training wrapper optimizes the
+supplied head and any feature-extractor parameters with `requires_grad=True`.
+The ProteinMPNN loader applies `model.freeze_weights`; custom extractors and
+injected encoders control their own parameter freezing. Unfrozen extractor
+parameters use `training.mpnn_learn_rate` when set; head parameters use
+`training.learn_rate`.
+
+`PooledAttentionModel(cfg)` remains the default combination of these modules,
+with the same input signature. `PooledAttentionModelPL(cfg)` uses that default
+and supplies the training loss, metrics, optimizer, and learning-rate scheduler.
+Parameter paths now start with `feature_extractor.prot_mpnn` and
+`prediction_head`; checkpoints from the earlier layout require key remapping.
 
 [`src/mutation_prediction/model/train.py`](src/mutation_prediction/model/train.py)
 loads the YAML configuration, builds the data loaders, and launches training.

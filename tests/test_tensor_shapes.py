@@ -89,6 +89,8 @@ class TensorShapeTests(unittest.TestCase):
     def test_annotation_names_resolve_for_all_tensor_modules(self):
         names = (
             "mutation_prediction.tensor_types",
+            "mutation_prediction.model.features",
+            "mutation_prediction.model.heads",
             "mutation_prediction.model.model",
             "mutation_prediction.thermo_mpnn_d.proteinmpnn.model_utils",
             "mutation_prediction.thermo_mpnn_d.proteinmpnn.rigid_utils",
