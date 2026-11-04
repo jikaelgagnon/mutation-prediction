@@ -145,6 +145,17 @@ data/raw/megascale/
 Data is gitignored. The script skips downloading if `data/raw/megascale/` already
 exists and is nonempty; it does not verify that an earlier download is complete.
 
+## Pretrained single-mutant baseline
+
+The ThermoMPNN-D code already includes the updated single-mutant ThermoMPNN.
+[`mutation_prediction.thermompnn`](src/mutation_prediction/thermompnn.py) provides
+an inference-only wrapper for its matching pretrained weights, returning all
+single-substitution ΔΔGs in one encoder pass per reference protein. It runs on
+CPU or GPU without loading a Lightning trainer or a training dataset.
+
+See [checkpoint download, CLI, and Python usage](docs/thermompnn_inference.md).
+This uses the single-mutant model, not the ThermoMPNN-D double-mutant predictor.
+
 ## Train our model
 
 Our model has three independent PyTorch modules:
