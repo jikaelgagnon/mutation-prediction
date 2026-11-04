@@ -5,20 +5,25 @@ attention/side-chain feature paths used before the mutation-effect readout.
 The complete single- and multi-mutant heads are in ``v2_model.py``.
 """
 
+from __future__ import annotations
+
+import math
+import os
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import math
-import os
-import numpy as np
+from jaxtyping import Float, Int, Real, Shaped
+from torch import Tensor
 
-from mutation_prediction.thermo_mpnn_d.thermompnn.protein_mpnn_utils import ProteinMPNN
 from mutation_prediction.thermo_mpnn_d.thermompnn.protein_mpnn_utils import (
-    gather_nodes,
-    gather_edges,
     DecLayer,
-    cat_neighbors_nodes,
     PositionWiseFeedForward,
+    ProteinMPNN,
+    cat_neighbors_nodes,
+    gather_edges,
+    gather_nodes,
 )
 
 
@@ -69,7 +74,10 @@ class SideChainPositionalEncodings(nn.Module):
         self.max_relative_feature = max_relative_feature 
         self.af2_relpos = af2_relpos
         
-    def _transformer_encoding(self, E_idx):
+    def _transformer_encoding(
+        self,
+        E_idx: Int[Tensor, "batch length neighbors"],
+    ) -> Float[Tensor, "batch length neighbors positional_features"]:
         # i-j
         N_nodes = E_idx.size(1)
         ii = torch.arange(N_nodes, dtype=torch.float32, device=E_idx.device).view((1, -1, 1))
@@ -86,7 +94,11 @@ class SideChainPositionalEncodings(nn.Module):
         
         return E
     
-    def _af2_encoding(self, E_idx, residue_index=None):
+    def _af2_encoding(
+        self,
+        E_idx: Int[Tensor, "batch length neighbors"],
+        residue_index: Int[Tensor, "batch length"] | None = None,
+    ) -> Int[Tensor, "batch length neighbors positional_features"]:
         # i-j
         if residue_index is not None:
             offset = residue_index[..., None] - residue_index[..., None, :]
@@ -101,7 +113,11 @@ class SideChainPositionalEncodings(nn.Module):
         
         return relpos
 
-    def forward(self, E_idx, residue_index=None):
+    def forward(
+        self,
+        E_idx: Int[Tensor, "batch length neighbors"],
+        residue_index: Int[Tensor, "batch length"] | None = None,
+    ) -> Real[Tensor, "batch length neighbors positional_features"]:
 
         if self.af2_relpos:
             E = self._af2_encoding(E_idx, residue_index)
@@ -133,7 +149,16 @@ class SideChainProteinFeatures(nn.Module):
         self.edge_embedding = nn.Linear(edge_in, edge_features, bias=False)
         self.norm_edges = nn.LayerNorm(edge_features)
 
-    def _dist(self, X, mask, eps=1E-6):
+    def _dist(
+        self,
+        X: Float[Tensor, "batch length 3"],
+        mask: Real[Tensor, "batch length"],
+        eps: float = 1e-06,
+    ) -> tuple[
+        Float[Tensor, "batch length neighbors"],
+        Int[Tensor, "batch length neighbors"],
+        Real[Tensor, "batch length neighbors 1"],
+    ]:
         """ Pairwise euclidean distances """
         # Convolutional network on NCHW
         mask_2D = torch.unsqueeze(mask,1) * torch.unsqueeze(mask,2)
@@ -148,7 +173,10 @@ class SideChainProteinFeatures(nn.Module):
 
         return D_neighbors, E_idx, mask_neighbors
 
-    def _rbf(self, D):
+    def _rbf(
+        self,
+        D: Float[Tensor, "batch length neighbors"],
+    ) -> Float[Tensor, "batch length neighbors rbf_features"]:
         # Distance radial basis function
         D_min, D_max, D_count = 0., 20., self.num_rbf
         D_mu = torch.linspace(D_min, D_max, D_count, device=D.device)
@@ -159,7 +187,14 @@ class SideChainProteinFeatures(nn.Module):
 
         return RBF
 
-    def _get_rbf(self, A, B, E_idx, A_mask, B_mask):
+    def _get_rbf(
+        self,
+        A: Float[Tensor, "batch length 3"],
+        B: Float[Tensor, "batch length 3"],
+        E_idx: Int[Tensor, "batch length neighbors"],
+        A_mask: Real[Tensor, "batch length"],
+        B_mask: Real[Tensor, "batch length"],
+    ) -> Float[Tensor, "batch length neighbors rbf_features"]:
         D_A_B = torch.sqrt(torch.sum((A[:,:,None,:] - B[:,None,:,:])**2,-1) + 1e-6) #[B, L, L]
         D_A_B_neighbors = gather_edges(D_A_B[:,:,:,None], E_idx)[:,:,:,0] #[B,L,K]
 
@@ -174,14 +209,25 @@ class SideChainProteinFeatures(nn.Module):
         RBF_A_B = self._rbf(D_A_B_neighbors) * combo.expand(combo.shape[0], combo.shape[1], combo.shape[2], self.num_rbf) # [B, L, K, N_RBF]
         return RBF_A_B
 
-    def _impute_CB(self, N, CA, C):
+    def _impute_CB(
+        self,
+        N: Float[Tensor, "batch length 3"],
+        CA: Float[Tensor, "batch length 3"],
+        C: Float[Tensor, "batch length 3"],
+    ) -> Float[Tensor, "batch length 3"]:
         b = CA - N
         c = C - CA
         a = torch.cross(b, c, dim=-1)
         Cb = -0.58273431*a + 0.56802827*b - 0.54067466*c + CA
         return Cb
 
-    def _atomic_distances(self, X, E_idx, atom_mask, S=None):
+    def _atomic_distances(
+        self,
+        X: Float[Tensor, "batch length atoms 3"],
+        E_idx: Int[Tensor, "batch length neighbors"],
+        atom_mask: Real[Tensor, "batch length atoms"],
+        S: Int[Tensor, "batch length"] | None = None,
+    ) -> Float[Tensor, "batch length neighbors atomic_rbf_features"]:
         RBF_all = []
         
         if self.action_centers is not None:
@@ -195,7 +241,12 @@ class SideChainProteinFeatures(nn.Module):
         RBF_all = torch.cat(tuple(RBF_all), dim=-1)    
         return RBF_all
     
-    def _action_centers(self, X, atom_mask, S=None):
+    def _action_centers(
+        self,
+        X: Float[Tensor, "batch length 14 3"],
+        atom_mask: Real[Tensor, "batch length 14"],
+        S: Int[Tensor, "batch length"] | None = None,
+    ) -> tuple[Float[Tensor, "batch length 5 3"], Real[Tensor, "batch length 5"]]:
         """Takes full coord set [B, L, 14, 3] and atom mask [B, L, 14]
         returns X with appended action center [B, L, 5, 3] and updated atom mask [B, L, 5]        
         """
@@ -253,7 +304,11 @@ class SideChainProteinFeatures(nn.Module):
                 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], # X
             ], device=X.device) # [21, 14]
             
-            def batched_index_select(input, dim, index):
+            def batched_index_select(
+                input: Shaped[Tensor, "batch *features"],
+                dim: int,
+                index: Int[Tensor, "batch selected"],
+            ) -> Shaped[Tensor, "batch *selected_features"]:
                 for ii in range(1, len(input.shape)):
                     if ii != dim:
                         index = index.unsqueeze(ii)
@@ -286,7 +341,18 @@ class SideChainProteinFeatures(nn.Module):
         else:
             raise ValueError("Invalid action center setting!")
 
-    def forward(self, X, mask, residue_idx, chain_labels, atom_mask, S=None):
+    def forward(
+        self,
+        X: Float[Tensor, "batch length atoms 3"],
+        mask: Real[Tensor, "batch length"],
+        residue_idx: Int[Tensor, "batch length"],
+        chain_labels: Int[Tensor, "batch length"],
+        atom_mask: Real[Tensor, "batch length atoms"],
+        S: Int[Tensor, "batch length"] | None = None,
+    ) -> tuple[
+        Float[Tensor, "batch length neighbors edge_features"],
+        Int[Tensor, "batch length neighbors"],
+    ]:
         
         if self.augment_eps > 0:
             X = X + self.augment_eps * torch.randn_like(X)
@@ -340,7 +406,17 @@ class SideChainModule(nn.Module):
             num_in = 128     
         self.sc_agg = SimpleMPNNAgg(num_hidden=128, num_in=num_in, dropout=0.2, scale=top_k)
     
-    def forward(self, X, S, mask, chain_M, residue_idx, chain_encoding_all, h_V, atom_mask):
+    def forward(
+        self,
+        X: Float[Tensor, "batch length atoms 3"],
+        S: Int[Tensor, "batch length"],
+        mask: Real[Tensor, "batch length"],
+        chain_M: Real[Tensor, "batch length"],
+        residue_idx: Int[Tensor, "batch length"],
+        chain_encoding_all: Int[Tensor, "batch length"],
+        h_V: Float[Tensor, "batch length hidden"],
+        atom_mask: Real[Tensor, "batch length atoms"],
+    ) -> Float[Tensor, "batch length hidden"]:
         # generate features (RBFs and positional encodings)
         if self.augment_eps > 0:
             X = X + self.augment_eps * torch.randn_like(X)
@@ -378,7 +454,11 @@ class SimpleMPNNAgg(nn.Module):
 
         self.act = torch.nn.GELU()
 
-    def forward(self, edges, mask=None):
+    def forward(
+        self,
+        edges: Float[Tensor, "batch length neighbors input_features"],
+        mask: Real[Tensor, "batch length neighbors"] | None = None,
+    ) -> Float[Tensor, "batch length hidden"]:
         """ 
         Parallel computation of full transformer layer 
         Message passing to make nodes out of edges without any prior nodes
@@ -413,12 +493,16 @@ class LightAttention(nn.Module):
         self.softmax = nn.Softmax(dim=-1)
         self.dropout = nn.Dropout(conv_dropout)
 
-    def forward(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
+    def forward(
+        self,
+        x: Float[Tensor, "batch embedding length"],
+        **kwargs,
+    ) -> Float[Tensor, "batch embedding length"] | Float[Tensor, "batch embedding"]:
         """
         Args:
             x: [batch_size, embeddings_dim, sequence_length] embedding tensor
         Returns:
-            LightAttention reweighted vector of the same dimensions
+            [batch, embedding] when length is 1; otherwise [batch, embedding, length]
         """
         o = self.feature_convolution(x)  # [batch_size, embeddings_dim, sequence_length]
         o = self.dropout(o)  # [batch_size, embeddings_dim, sequence_length]
@@ -438,7 +522,12 @@ class MPNNLayer(nn.Module):
         self.W1 = nn.Linear(num_in, num_hidden, bias=True)
         self.act = torch.nn.GELU()
 
-    def forward(self, emb1, emb2, mask=None):
+    def forward(
+        self,
+        emb1: Float[Tensor, "batch embedding"],
+        emb2: Float[Tensor, "batch embedding"],
+        mask: Real[Tensor, "batch embedding"] | None = None,
+    ) -> Float[Tensor, "batch embedding"]:
         """ Message passing b/w two embeddings
         emb1 and emb2: embeddings with the same shape [BATCH, EMBED]
         mask: mask of whether to use a message or not (if single mutation, don't use message) [BATCH, EMBED]
@@ -457,7 +546,13 @@ class MPNNLayer(nn.Module):
 
         return emb1
 
-    def forwardOLD(self, h_V, h_E, mask_V=None, mask_attend=None):
+    def forwardOLD(
+        self,
+        h_V: Float[Tensor, "batch length hidden"],
+        h_E: Float[Tensor, "batch length neighbors message_features"],
+        mask_V: Real[Tensor, "batch length"] | None = None,
+        mask_attend: Real[Tensor, "batch length neighbors"] | None = None,
+    ) -> Float[Tensor, "batch length hidden"]:
         """ Parallel computation of full transformer layer """
 
         # Concatenate h_V_i to h_E_ij

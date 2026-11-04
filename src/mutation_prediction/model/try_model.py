@@ -6,20 +6,30 @@ app = marimo.App(width="medium")
 
 @app.cell
 def _():
+    from itertools import permutations
+
+    import numpy as np
     import torch
     import torch.nn as nn
-    from itertools import permutations
-    import numpy as np
+    from jaxtyping import Float, Int, Real, Shaped
+    from torch import Tensor
 
     from mutation_prediction.thermo_mpnn_d.thermompnn.model.modules import (
-        get_protein_mpnn,
         LightAttention,
         MPNNLayer,
         SideChainModule,
+        get_protein_mpnn,
     )
-    from mutation_prediction.thermo_mpnn_d.thermompnn.model.side_chain_model import get_protein_mpnn_sca
+    from mutation_prediction.thermo_mpnn_d.thermompnn.model.side_chain_model import (
+        get_protein_mpnn_sca,
+    )
 
-    def batched_index_select(input, dim, index):
+    def batched_index_select(
+        input: Shaped[Tensor, "batch *features"],
+        dim: int,
+        index: Int[Tensor, "batch selected"],
+    ) -> Shaped[Tensor, "batch *selected_features"]:
+        """Replace axis dim with selected indices; preserve every other input axis."""
         for ii in range(1, len(input.shape)):
             if ii != dim:
                 index = index.unsqueeze(ii)
@@ -29,7 +39,14 @@ def _():
         index = index.expand(expanse)
         return torch.gather(input, dim, index)
 
-    def dist(X, mask, eps=1E-6, top_k=48):
+    def dist(
+        X: Float[Tensor, "batch length 3"],
+        mask: Real[Tensor, "batch length"],
+        eps: float = 1e-06,
+        top_k: int = 48,
+    ) -> tuple[
+        Float[Tensor, "batch length neighbors"], Int[Tensor, "batch length neighbors"]
+    ]:
         """ProteinMPNN distance calculation"""
         mask_2D = torch.unsqueeze(mask, 1) * torch.unsqueeze(mask, 2)
         dX = torch.unsqueeze(X, 1) - torch.unsqueeze(X, 2)
@@ -39,7 +56,12 @@ def _():
         D_neighbors, E_idx = torch.topk(D_adjust, np.minimum(top_k, X.shape[1]), dim=-1, largest=False)
         return D_neighbors, E_idx
 
-    def check_sequence_match(S, wt, mut, pos):
+    def check_sequence_match(
+        S: Int[Tensor, "batch length"],
+        wt: Int[Tensor, "batch mutations"],
+        mut: Int[Tensor, "batch mutations"],
+        pos: Int[Tensor, "batch mutations"],
+    ) -> Int[Tensor, "batch length"]:
         """
         Checks if S matches wt amino acids at the specified positions. 
         If not matching, adjusts S to match wt.
@@ -55,7 +77,7 @@ def _():
                 S_check = torch.gather(S, -1, pos[..., mut_idx, None]) # selects all amino acids in seq at pos locations
         return S
 
-    return check_sequence_match, get_protein_mpnn, nn, torch
+    return Float, Int, Real, Shaped, Tensor, check_sequence_match, get_protein_mpnn, nn, torch
 
 
 @app.cell
@@ -318,7 +340,7 @@ def _(device, model_inputs):
 
 
 @app.cell
-def _(check_sequence_match, get_protein_mpnn, nn, torch):
+def _(Float, Int, Real, Tensor, check_sequence_match, get_protein_mpnn, nn, torch):
     class PooledAttentionModel(nn.Module):
 
         def __init__(self, cfg, *, protein_encoder=None, prediction_head=None):
@@ -332,7 +354,21 @@ def _(check_sequence_match, get_protein_mpnn, nn, torch):
             self.attn_pool = nn.Linear(EMBED_DIM * (self.cfg.model.num_final_layers + 1), 1)
             self.final_layer = nn.Linear(EMBED_DIM * (self.cfg.model.num_final_layers + 1), 1)
 
-        def forward(self, X, S, mask, chain_M, residue_idx, chain_encoding_all, mut_positions, mut_wildtype_AAs, mut_mutant_AAs, mut_ddGs, atom_mask, esm_emb=None):
+        def forward(
+            self,
+            X: Float[Tensor, "batch length atoms 3"],
+            S: Int[Tensor, "batch length"],
+            mask: Real[Tensor, "batch length"],
+            chain_M: Real[Tensor, "batch length"],
+            residue_idx: Int[Tensor, "batch length"],
+            chain_encoding_all: Int[Tensor, "batch length"],
+            mut_positions: Int[Tensor, "batch mutations"],
+            mut_wildtype_AAs: Int[Tensor, "batch mutations"],
+            mut_mutant_AAs: Int[Tensor, "batch mutations"],
+            mut_ddGs: Float[Tensor, "batch 1"],
+            atom_mask: Real[Tensor, "batch length atoms"],
+            esm_emb: Float[Tensor, "batch length esm_features"] | None = None,
+        ) -> Float[Tensor, "batch 1"]:
             """Vectorized fwd function for arbitrary batches of mutations"""
 
             # check if S matches mut_wildtype_AAs - if not, overwrite it
@@ -400,7 +436,7 @@ def _(check_sequence_match, get_protein_mpnn, nn, torch):
             y = self.final_layer(pooled)
             return y
         
-        def _set_model_dims(self):
+        def _set_model_dims(self) -> tuple[int, int, int]:
             """
             Parse various config options to properly set input, output, and vocab dimensions
             """

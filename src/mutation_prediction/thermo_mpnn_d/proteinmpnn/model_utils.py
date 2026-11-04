@@ -5,29 +5,42 @@ residue embeddings for ThermoMPNN-D. The mutation-specific transfer head is in
 ``thermompnn/model/v2_model.py``.
 """
 
-from __future__ import print_function
-
-import json, time, os, sys, glob
-import shutil
-import numpy as np
-import torch
-from torch import optim
-from torch.utils.data import DataLoader
-from torch.utils.data.dataset import random_split, Subset
-import torch.utils
-import torch.utils.checkpoint
+from __future__ import annotations, print_function
 
 import copy
+import glob
+import itertools
+import json
+import os
+import random
+import shutil
+import sys
+import time
+
+import numpy as np
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import random
-import itertools
+import torch.utils
+import torch.utils.checkpoint
+from jaxtyping import Float, Int, Real, Shaped
+from torch import Tensor, optim
+from torch.utils.data import DataLoader
+from torch.utils.data.dataset import Subset, random_split
 
-import sys
+from mutation_prediction.tensor_types import (
+    ProteinBatch,
+    ProteinRecord,
+    SamplingOutput,
+)
 from mutation_prediction.thermo_mpnn_d.proteinmpnn.rigid_utils import Rigid
 
 
-def featurize(batch, device, side_chains=False):
+def featurize(
+    batch: list[ProteinRecord],
+    device: torch.device | str,
+    side_chains: bool = False,
+) -> ProteinBatch:
     alphabet = 'ACDEFGHIKLMNPQRSTVWYX'
     B = len(batch)
     lengths = np.array([len(b['seq']) for b in batch], dtype=np.int32) #sum of chain seq lengths
@@ -158,7 +171,13 @@ def featurize(batch, device, side_chains=False):
     return X, S, mask, lengths, chain_M, residue_idx, mask_self, chain_encoding_all
 
 
-def loss_nll(S, log_probs, mask):
+def loss_nll(
+    S: Int[Tensor, "batch length"],
+    log_probs: Float[Tensor, "batch length vocab"],
+    mask: Real[Tensor, "batch length"],
+) -> tuple[
+    Float[Tensor, "batch length"], Float[Tensor, ""], Float[Tensor, "batch length"]
+]:
     """ Negative log probabilities """
     criterion = torch.nn.NLLLoss(reduction='none')
     loss = criterion(
@@ -170,7 +189,12 @@ def loss_nll(S, log_probs, mask):
     return loss, loss_av, true_false
 
 
-def loss_smoothed(S, log_probs, mask, weight=0.1):
+def loss_smoothed(
+    S: Int[Tensor, "batch length"],
+    log_probs: Float[Tensor, "batch length 21"],
+    mask: Real[Tensor, "batch length"],
+    weight: float = 0.1,
+) -> tuple[Float[Tensor, "batch length"], Float[Tensor, ""]]:
     """ Negative log probabilities """
     S_onehot = torch.nn.functional.one_hot(S, 21).float()
 
@@ -183,18 +207,28 @@ def loss_smoothed(S, log_probs, mask, weight=0.1):
     return loss, loss_av
 
 
-def get_bb_frames(N, CA, C):
+def get_bb_frames(
+    N: Float[Tensor, "*batch 3"],
+    CA: Float[Tensor, "*batch 3"],
+    C: Float[Tensor, "*batch 3"],
+) -> Rigid:
     return Rigid.from_3_points(N, CA, C, fixed=True)
 
 
 # The following gather functions
-def gather_edges(edges, neighbor_idx):
+def gather_edges(
+    edges: Shaped[Tensor, "batch length length channels"],
+    neighbor_idx: Int[Tensor, "batch length neighbors"],
+) -> Shaped[Tensor, "batch length neighbors channels"]:
     # Features [B,N,N,C] at Neighbor indices [B,N,K] => Neighbor features [B,N,K,C]
     neighbors = neighbor_idx.unsqueeze(-1).expand(-1, -1, -1, edges.size(-1))
     edge_features = torch.gather(edges, 2, neighbors)
     return edge_features
 
-def gather_nodes(nodes, neighbor_idx):
+def gather_nodes(
+    nodes: Shaped[Tensor, "batch length channels"],
+    neighbor_idx: Int[Tensor, "batch queries neighbors"],
+) -> Shaped[Tensor, "batch queries neighbors channels"]:
     # Features [B,N,C] at Neighbor indices [B,N,K] => [B,N,K,C]
     # Flatten and expand indices per batch [B,N,K] => [B,NK] => [B,NK,C]
     neighbors_flat = neighbor_idx.view((neighbor_idx.shape[0], -1))
@@ -204,19 +238,28 @@ def gather_nodes(nodes, neighbor_idx):
     neighbor_features = neighbor_features.view(list(neighbor_idx.shape)[:3] + [-1])
     return neighbor_features
 
-def gather_nodes_t(nodes, neighbor_idx):
+def gather_nodes_t(
+    nodes: Shaped[Tensor, "batch length channels"],
+    neighbor_idx: Int[Tensor, "batch neighbors"],
+) -> Shaped[Tensor, "batch neighbors channels"]:
     # Features [B,N,C] at Neighbor index [B,K] => Neighbor features[B,K,C]
     idx_flat = neighbor_idx.unsqueeze(-1).expand(-1, -1, nodes.size(2))
     neighbor_features = torch.gather(nodes, 1, idx_flat)
     return neighbor_features
 
-def cat_neighbors_nodes(h_nodes, h_neighbors, E_idx):
+def cat_neighbors_nodes(
+    h_nodes: Float[Tensor, "batch length node_features"],
+    h_neighbors: Float[Tensor, "batch length neighbors edge_features"],
+    E_idx: Int[Tensor, "batch length neighbors"],
+) -> Float[Tensor, "batch length neighbors edge_features+node_features"]:
     h_nodes = gather_nodes(h_nodes, E_idx)
     h_nn = torch.cat([h_neighbors, h_nodes], -1)
     return h_nn
 
 
-def get_virtual_cbeta(X):
+def get_virtual_cbeta(
+    X: Float[Tensor, "batch length atoms 3"],
+) -> Float[Tensor, "batch length 3"]:
     """Calculate virtual Cb from ideal bond lengths and angles."""
     b = X[:, :, 1, :] - X[:, :, 0, :]
     c = X[:, :, 2, :] - X[:, :, 1, :]
@@ -225,7 +268,11 @@ def get_virtual_cbeta(X):
     return Cb
 
 
-def gather_mask(E_idx, mask1, mask2):
+def gather_mask(
+    E_idx: Int[Tensor, "batch length neighbors"],
+    mask1: Real[Tensor, "batch length"],
+    mask2: Real[Tensor, "batch length"],
+) -> Real[Tensor, "batch length neighbors"]:
     """Gather atom-wise mask using neighbor indices to get 2D mask."""
     # make pairwise 2D mask
     mask_2D = torch.unsqueeze(mask1, 1) * torch.unsqueeze(mask2, 2)
@@ -256,7 +303,16 @@ class EncLayer(nn.Module):
         self.act = torch.nn.GELU()
         self.dense = PositionWiseFeedForward(num_hidden, num_hidden * 4)
 
-    def forward(self, h_V, h_E, E_idx, mask_V=None, mask_attend=None):
+    def forward(
+        self,
+        h_V: Float[Tensor, "batch length hidden"],
+        h_E: Float[Tensor, "batch length neighbors hidden"],
+        E_idx: Int[Tensor, "batch length neighbors"],
+        mask_V: Real[Tensor, "batch length"] | None = None,
+        mask_attend: Real[Tensor, "batch length neighbors"] | None = None,
+    ) -> tuple[
+        Float[Tensor, "batch length hidden"], Float[Tensor, "batch length neighbors hidden"]
+    ]:
         """ Parallel computation of full transformer layer """
 
         h_EV = cat_neighbors_nodes(h_V, h_E, E_idx)
@@ -306,7 +362,14 @@ class IPMPEncoder(nn.Module):
         self.act = torch.nn.GELU()
         self.dense = PositionWiseFeedForward(num_hidden, num_hidden * 4)
 
-    def _get_message_input(self, h_V, h_E, E_idx, X, edge=False):
+    def _get_message_input(
+        self,
+        h_V: Float[Tensor, "batch length hidden"],
+        h_E: Float[Tensor, "batch length neighbors message_features"],
+        E_idx: Int[Tensor, "batch length neighbors"],
+        X: Float[Tensor, "batch length atoms 3"],
+        edge: bool = False,
+    ) -> Float[Tensor, "batch length neighbors message_input"]:
         # Get backbone global frames from N, CA, and C
         bb_to_global = get_bb_frames(X[..., 0, :], X[..., 1, :], X[..., 2, :])
 
@@ -358,7 +421,18 @@ class IPMPEncoder(nn.Module):
 
         return message_in
 
-    def forward(self, h_V, h_E, E_idx, X, mask_V=None, mask_attend=None):
+    def forward(
+        self,
+        h_V: Float[Tensor, "batch length hidden"],
+        h_E: Float[Tensor, "batch length neighbors message_features"],
+        E_idx: Int[Tensor, "batch length neighbors"],
+        X: Float[Tensor, "batch length atoms 3"],
+        mask_V: Real[Tensor, "batch length"] | None = None,
+        mask_attend: Real[Tensor, "batch length neighbors"] | None = None,
+    ) -> tuple[
+        Float[Tensor, "batch length hidden"],
+        Float[Tensor, "batch length neighbors message_features"],
+    ]:
         # Get message fn input for node message
         message_in = self._get_message_input(h_V, h_E, E_idx, X)
 
@@ -398,7 +472,14 @@ class DecLayer(nn.Module):
         self.act = torch.nn.GELU()
         self.dense = PositionWiseFeedForward(num_hidden, num_hidden * 4)
 
-    def forward(self, h_V, h_E, mask_V=None, mask_attend=None, h_E_sc=None):
+    def forward(
+        self,
+        h_V: Float[Tensor, "batch length hidden"],
+        h_E: Float[Tensor, "batch length neighbors decoder_features"],
+        mask_V: Real[Tensor, "batch length"] | None = None,
+        mask_attend: Real[Tensor, "batch length neighbors"] | None = None,
+        h_E_sc: Float[Tensor, "batch length neighbors hidden"] | None = None,
+    ) -> Float[Tensor, "batch length hidden"]:
         """ Parallel computation of full transformer layer """
         # Concatenate h_V_i to h_E_ij
         h_V_expand = h_V.unsqueeze(-2).expand(-1,-1,h_E.size(-2),-1)
@@ -442,7 +523,13 @@ class IPMPDecoder(nn.Module):
         self.act = torch.nn.GELU()
         self.dense = PositionWiseFeedForward(num_hidden, num_hidden * 4)
 
-    def _get_message_input(self, h_V, h_E, E_idx, X_neighbors):
+    def _get_message_input(
+        self,
+        h_V: Float[Tensor, "batch length hidden"],
+        h_E: Float[Tensor, "batch length neighbors message_features"],
+        E_idx: Int[Tensor, "batch length neighbors"],
+        X_neighbors: Float[Tensor, "batch length neighbors atoms 3"],
+    ) -> Float[Tensor, "batch length neighbors message_input"]:
         # Get backbone global frames from N, CA, and C
         bb_to_global = get_bb_frames(X_neighbors[..., 0, :], X_neighbors[..., 1, :], X_neighbors[..., 2, :])
 
@@ -490,7 +577,15 @@ class IPMPDecoder(nn.Module):
         return message_in
         
         
-    def forward(self, h_V, h_E, E_idx, X_neighbors, mask_V=None, mask_attend=None):
+    def forward(
+        self,
+        h_V: Float[Tensor, "batch length hidden"],
+        h_E: Float[Tensor, "batch length neighbors message_features"],
+        E_idx: Int[Tensor, "batch length neighbors"],
+        X_neighbors: Float[Tensor, "batch length neighbors atoms 3"],
+        mask_V: Real[Tensor, "batch length"] | None = None,
+        mask_attend: Real[Tensor, "batch length neighbors"] | None = None,
+    ) -> Float[Tensor, "batch length hidden"]:
         # Get message fn input for node message
         message_in = self._get_message_input(h_V, h_E, E_idx, X_neighbors)
 
@@ -514,7 +609,9 @@ class PositionWiseFeedForward(nn.Module):
         self.W_in = nn.Linear(num_hidden, num_ff, bias=True)
         self.W_out = nn.Linear(num_ff, num_hidden, bias=True)
         self.act = torch.nn.GELU()
-    def forward(self, h_V):
+    def forward(
+        self, h_V: Float[Tensor, "*batch hidden"]
+    ) -> Float[Tensor, "*batch hidden"]:
         h = self.act(self.W_in(h_V))
         h = self.W_out(h)
         return h
@@ -526,7 +623,11 @@ class PositionalEncodings(nn.Module):
         self.max_relative_feature = max_relative_feature
         self.linear = nn.Linear(2*max_relative_feature+1+1, num_embeddings)
 
-    def forward(self, offset, mask):
+    def forward(
+        self,
+        offset: Int[Tensor, "batch length neighbors"],
+        mask: Real[Tensor, "batch length neighbors"],
+    ) -> Float[Tensor, "batch length neighbors positional_features"]:
         d = torch.clip(offset + self.max_relative_feature, 0, 2*self.max_relative_feature)*mask + (1-mask)*(2*self.max_relative_feature+1)
         d_onehot = torch.nn.functional.one_hot(d, 2*self.max_relative_feature+1+1)
         E = self.linear(d_onehot.float())
@@ -559,7 +660,14 @@ class ProteinFeatures(nn.Module):
         self.edge_embedding = nn.Linear(edge_in, edge_features, bias=False)
         self.norm_edges = nn.LayerNorm(edge_features)
 
-    def _dist(self, X, mask, eps=1E-6):
+    def _dist(
+        self,
+        X: Float[Tensor, "batch length 3"],
+        mask: Real[Tensor, "batch length"],
+        eps: float = 1e-06,
+    ) -> tuple[
+        Float[Tensor, "batch length neighbors"], Int[Tensor, "batch length neighbors"]
+    ]:
         mask_2D = torch.unsqueeze(mask,1) * torch.unsqueeze(mask,2)
         dX = torch.unsqueeze(X,1) - torch.unsqueeze(X,2)
         D = mask_2D * torch.sqrt(torch.sum(dX**2, 3) + eps)
@@ -569,7 +677,10 @@ class ProteinFeatures(nn.Module):
         D_neighbors, E_idx = torch.topk(D_adjust, np.minimum(self.top_k, X.shape[1]), dim=-1, largest=False)
         return D_neighbors, E_idx
 
-    def _rbf(self, D):
+    def _rbf(
+        self,
+        D: Float[Tensor, "batch length neighbors"],
+    ) -> Float[Tensor, "batch length neighbors rbf_features"]:
         device = D.device
         D_min, D_max, D_count = 2., 22., self.num_rbf
         D_mu = torch.linspace(D_min, D_max, D_count, device=device)
@@ -579,13 +690,26 @@ class ProteinFeatures(nn.Module):
         RBF = torch.exp(-((D_expand - D_mu) / D_sigma)**2)
         return RBF
 
-    def _get_rbf(self, A, B, E_idx):
+    def _get_rbf(
+        self,
+        A: Float[Tensor, "batch length 3"],
+        B: Float[Tensor, "batch length 3"],
+        E_idx: Int[Tensor, "batch length neighbors"],
+    ) -> Float[Tensor, "batch length neighbors rbf_features"]:
         D_A_B = torch.sqrt(torch.sum((A[:,:,None,:] - B[:,None,:,:])**2,-1) + 1e-6) #[B, L, L]
         D_A_B_neighbors = gather_edges(D_A_B[:,:,:,None], E_idx)[:,:,:,0] #[B,L,K]
         RBF_A_B = self._rbf(D_A_B_neighbors)
         return RBF_A_B
 
-    def _get_rbf_masked(self, A, B, E_idx, A_mask, B_mask, chain_labels=None):
+    def _get_rbf_masked(
+        self,
+        A: Float[Tensor, "batch length 3"],
+        B: Float[Tensor, "batch length 3"],
+        E_idx: Int[Tensor, "batch length neighbors"],
+        A_mask: Real[Tensor, "batch length"],
+        B_mask: Real[Tensor, "batch length"],
+        chain_labels: Int[Tensor, "batch length"] | None = None,
+    ) -> Float[Tensor, "batch length neighbors rbf_features"]:
         D_A_B = torch.sqrt(torch.sum((A[:,:,None,:] - B[:,None,:,:])**2,-1) + 1e-6) #[B, L, L]
         D_A_B_neighbors = gather_edges(D_A_B[:,:,:,None], E_idx)[:,:,:,0] #[B,L,K]
 
@@ -613,7 +737,18 @@ class ProteinFeatures(nn.Module):
         
         return RBF_A_B
 
-    def forward(self, X, mask, residue_idx, chain_labels, mask_per_atom=None):
+    def forward(
+        self,
+        X: Float[Tensor, "batch length atoms 3"],
+        mask: Real[Tensor, "batch length"],
+        residue_idx: Int[Tensor, "batch length"],
+        chain_labels: Int[Tensor, "batch length"],
+        mask_per_atom: Real[Tensor, "batch length atoms"] | None = None,
+    ) -> tuple[
+        Float[Tensor, "batch length neighbors edge_features"],
+        Int[Tensor, "batch length neighbors"],
+        Float[Tensor, "batch length atoms 3"],
+    ]:
         if self.training and self.augment_eps > 0:
             X = X + self.augment_eps * torch.randn_like(X)
         RBF_all = []
@@ -725,7 +860,15 @@ class ProteinMPNN(nn.Module):
             if p.dim() > 1:
                 nn.init.xavier_uniform_(p)
 
-    def forward(self, X, S, mask, chain_M, residue_idx, chain_encoding_all):
+    def forward(
+        self,
+        X: Float[Tensor, "batch length atoms 3"],
+        S: Int[Tensor, "batch length"],
+        mask: Real[Tensor, "batch length"],
+        chain_M: Real[Tensor, "batch length"],
+        residue_idx: Int[Tensor, "batch length"],
+        chain_encoding_all: Int[Tensor, "batch length"],
+    ) -> Float[Tensor, "batch length vocab"]:
         """ Graph-conditioned sequence model """
         device=X.device
         # Prepare node and edge embeddings
@@ -808,7 +951,17 @@ class ProteinMPNN(nn.Module):
         log_probs = F.log_softmax(logits, dim=-1)
         return log_probs
 
-    def sample(self, X, randn, S_true, chain_mask, chain_encoding_all, residue_idx, mask=None, temperature=1.0):
+    def sample(
+        self,
+        X: Float[Tensor, "batch length atoms 3"],
+        randn: Float[Tensor, "batch length"],
+        S_true: Int[Tensor, "batch length"],
+        chain_mask: Real[Tensor, "batch length"],
+        chain_encoding_all: Int[Tensor, "batch length"],
+        residue_idx: Int[Tensor, "batch length"],
+        mask: Real[Tensor, "batch length"] | None = None,
+        temperature: float = 1.0,
+    ) -> SamplingOutput:
         device = X.device
         # Prepare node and edge embeddings
         X = torch.nan_to_num(X, nan=0.0)
@@ -917,7 +1070,17 @@ class ProteinMPNN(nn.Module):
         output_dict = {"S": S, "probs": all_probs, "decoding_order": decoding_order, "log_probs": log_probs}
         return output_dict
 
-    def sample_SRR(self, X, randn, S_true, chain_mask, chain_encoding_all, residue_idx, mask=None, temperature=1.0):
+    def sample_SRR(
+        self,
+        X: Float[Tensor, "batch length atoms 3"],
+        randn: Float[Tensor, "batch length"],
+        S_true: Int[Tensor, "batch length"],
+        chain_mask: Real[Tensor, "batch length"],
+        chain_encoding_all: Int[Tensor, "batch length"],
+        residue_idx: Int[Tensor, "batch length"],
+        mask: Real[Tensor, "batch length"] | None = None,
+        temperature: float = 1.0,
+    ) -> SamplingOutput:
         """ Graph-conditioned sequence model """
         device=X.device
         # Prepare node and edge embeddings

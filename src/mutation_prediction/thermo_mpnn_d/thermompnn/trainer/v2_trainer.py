@@ -6,13 +6,24 @@ encoder); the Siamese wrapper trains both mutation orders with the symmetry
 loss described in the double-mutant extension.
 """
 
+from __future__ import annotations
+
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
-from  torch import nn 
+from jaxtyping import Float, Int, Real
+from torch import Tensor, nn
 
-from mutation_prediction.thermo_mpnn_d.thermompnn.model.v2_model import TransferModelv2, TransferModelv2Siamese
-from mutation_prediction.thermo_mpnn_d.thermompnn.trainer.trainer_utils import get_metrics
+from mutation_prediction.tensor_types import (
+    MutationBatch,
+)
+from mutation_prediction.thermo_mpnn_d.thermompnn.model.v2_model import (
+    TransferModelv2,
+    TransferModelv2Siamese,
+)
+from mutation_prediction.thermo_mpnn_d.thermompnn.trainer.trainer_utils import (
+    get_metrics,
+)
 
 
 class TransferModelPLv2(pl.LightningModule):
@@ -38,10 +49,42 @@ class TransferModelPLv2(pl.LightningModule):
                 for name, metric in get_metrics(False, False).items():
                     self.metrics[split][out][name] = metric
 
-    def forward(self, *args):
-        return self.model(*args)
+    def forward(
+        self,
+        X: Float[Tensor, "batch length atoms 3"],
+        S: Int[Tensor, "batch length"],
+        mask: Real[Tensor, "batch length"],
+        chain_M: Real[Tensor, "batch length"],
+        residue_idx: Int[Tensor, "batch length"],
+        chain_encoding_all: Int[Tensor, "batch length"],
+        mut_positions: Int[Tensor, "batch mutations"],
+        mut_wildtype_AAs: Int[Tensor, "batch mutations"],
+        mut_mutant_AAs: Int[Tensor, "batch mutations"],
+        mut_ddGs: Float[Tensor, "batch 1"],
+        atom_mask: Real[Tensor, "batch length atoms"],
+        esm_emb: Float[Tensor, "batch length esm_features"] | None = None,
+    ) -> tuple[Float[Tensor, "batch 1"] | Float[Tensor, "batch mutations"], None]:
+        return self.model(
+            X,
+            S,
+            mask,
+            chain_M,
+            residue_idx,
+            chain_encoding_all,
+            mut_positions,
+            mut_wildtype_AAs,
+            mut_mutant_AAs,
+            mut_ddGs,
+            atom_mask,
+            esm_emb,
+        )
 
-    def shared_eval(self, batch, batch_idx, prefix):
+    def shared_eval(
+        self,
+        batch: MutationBatch,
+        batch_idx: int,
+        prefix: str,
+    ) -> Float[Tensor, ""] | None:
         
         if self.cfg.model.subtract_mut and ('double' in self.cfg.data.mut_types):
             # do std fwd pass
@@ -74,16 +117,20 @@ class TransferModelPLv2(pl.LightningModule):
             return None
         return mse
 
-    def training_step(self, batch, batch_idx):
+    def training_step(
+        self, batch: MutationBatch, batch_idx: int
+    ) -> Float[Tensor, ""] | None:
         return self.shared_eval(batch, batch_idx, 'train')
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(
+        self, batch: MutationBatch, batch_idx: int
+    ) -> Float[Tensor, ""] | None:
         return self.shared_eval(batch, batch_idx, 'val')
 
-    def test_step(self, batch, batch_idx):
+    def test_step(self, batch: MutationBatch, batch_idx: int) -> Float[Tensor, ""] | None:
         return self.shared_eval(batch, batch_idx, 'test')
 
-    def configure_optimizers(self):
+    def configure_optimizers(self) -> torch.optim.Optimizer | dict[str, object]:
         
         if not self.cfg.model.freeze_weights: # fully unfrozen ProteinMPNN
             mpnn_lr = self.cfg.training.mpnn_learn_rate or self.cfg.training.learn_rate
@@ -150,10 +197,42 @@ class TransferModelPLv2Siamese(pl.LightningModule):
                 for name, metric in get_metrics(False, sym).items():
                     self.metrics[split][out][name] = metric
 
-    def forward(self, *args):
-        return self.model(*args)
+    def forward(
+        self,
+        X: Float[Tensor, "batch length atoms 3"],
+        S: Int[Tensor, "batch length"],
+        mask: Real[Tensor, "batch length"],
+        chain_M: Real[Tensor, "batch length"],
+        residue_idx: Int[Tensor, "batch length"],
+        chain_encoding_all: Int[Tensor, "batch length"],
+        mut_positions: Int[Tensor, "batch mutations"],
+        mut_wildtype_AAs: Int[Tensor, "batch mutations"],
+        mut_mutant_AAs: Int[Tensor, "batch mutations"],
+        mut_ddGs: Float[Tensor, "batch 1"],
+        atom_mask: Real[Tensor, "batch length atoms"],
+        esm_emb: Float[Tensor, "batch length esm_features"] | None = None,
+    ) -> tuple[Float[Tensor, "batch 1"], Float[Tensor, "batch 1"]]:
+        return self.model(
+            X,
+            S,
+            mask,
+            chain_M,
+            residue_idx,
+            chain_encoding_all,
+            mut_positions,
+            mut_wildtype_AAs,
+            mut_mutant_AAs,
+            mut_ddGs,
+            atom_mask,
+            esm_emb,
+        )
 
-    def shared_eval(self, batch, batch_idx, prefix):
+    def shared_eval(
+        self,
+        batch: MutationBatch,
+        batch_idx: int,
+        prefix: str,
+    ) -> Float[Tensor, ""] | None:
         
         X, S, mask, lengths, chain_M, chain_encoding_all, residue_idx, mut_positions, mut_wildtype_AAs, mut_mutant_AAs, mut_ddGs, atom_mask = batch
         # siamese net gives 2x ddGs that should match (one for each ordering)
@@ -187,16 +266,20 @@ class TransferModelPLv2Siamese(pl.LightningModule):
             return None
         return mse
 
-    def training_step(self, batch, batch_idx):
+    def training_step(
+        self, batch: MutationBatch, batch_idx: int
+    ) -> Float[Tensor, ""] | None:
         return self.shared_eval(batch, batch_idx, 'train')
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(
+        self, batch: MutationBatch, batch_idx: int
+    ) -> Float[Tensor, ""] | None:
         return self.shared_eval(batch, batch_idx, 'val')
 
-    def test_step(self, batch, batch_idx):
+    def test_step(self, batch: MutationBatch, batch_idx: int) -> Float[Tensor, ""] | None:
         return self.shared_eval(batch, batch_idx, 'test')
 
-    def configure_optimizers(self):
+    def configure_optimizers(self) -> torch.optim.Optimizer | dict[str, object]:
         
         if not self.cfg.model.freeze_weights: # fully unfrozen ProteinMPNN
             mpnn_lr = self.cfg.training.mpnn_learn_rate or self.cfg.training.learn_rate

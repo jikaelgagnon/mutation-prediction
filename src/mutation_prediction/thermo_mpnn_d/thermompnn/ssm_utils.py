@@ -4,16 +4,27 @@ Paper map: applies ThermoMPNN-D across candidate substitutions and maps input
 mutation positions to PDB residue numbering, with optional structural filters.
 """
 
+from __future__ import annotations
+
 import os
 import re
 
 import numpy as np
+import pandas as pd
 from Bio.PDB import PDBParser
+from jaxtyping import Float, Int
 from omegaconf import OmegaConf
 from scipy.spatial.distance import cdist
-from mutation_prediction.thermo_mpnn_d.thermompnn.train_thermompnn import parse_cfg
-from mutation_prediction.thermo_mpnn_d.thermompnn.trainer.v2_trainer import TransferModelPLv2, TransferModelPLv2Siamese
 from tqdm import tqdm
+
+from mutation_prediction.tensor_types import (
+    ProteinRecord,
+)
+from mutation_prediction.thermo_mpnn_d.thermompnn.train_thermompnn import parse_cfg
+from mutation_prediction.thermo_mpnn_d.thermompnn.trainer.v2_trainer import (
+    TransferModelPLv2,
+    TransferModelPLv2Siamese,
+)
 
 
 def get_model(mode, config):
@@ -74,7 +85,7 @@ def get_config(mode):
     return parse_cfg(config)
 
 
-def get_dmat(pdb):
+def get_dmat(pdb: ProteinRecord) -> Float[np.ndarray, "length length"]:
     """Get LxL dmat from PDB"""
 
     # get distance matrix
@@ -90,7 +101,14 @@ def get_dmat(pdb):
     return dmat
 
 
-def custom_parse_PDB_biounits(x, atoms=["N", "CA", "C"], chain=None):
+def custom_parse_PDB_biounits(
+    x: str,
+    atoms: list[str] = ["N", "CA", "C"],
+    chain: str | None = None,
+) -> (
+    tuple[Float[np.ndarray, "length atoms 3"], list[str], list[str]]
+    | tuple[str, str, str]
+):
     """
     input:  x = PDB filename
             atoms = atoms to extract (optional)
@@ -129,14 +147,19 @@ def custom_parse_PDB_biounits(x, atoms=["N", "CA", "C"], chain=None):
     aa_1_3 = {a: b for a, b in zip(alpha_1, alpha_3)}
     aa_3_1 = {b: a for a, b in zip(alpha_1, alpha_3)}
 
-    def AA_to_N(x):
+    def AA_to_N(x: str | list[str] | np.ndarray) -> list[list[int]]:
         # ["ARND"] -> [[0,1,2,3]]
         x = np.array(x)
         if x.ndim == 0:
             x = x[None]
         return [[aa_1_N.get(a, states - 1) for a in y] for y in x]
 
-    def N_to_AA(x):
+    def N_to_AA(
+        x: Int[np.ndarray, "length"]
+        | Int[np.ndarray, "batch length"]
+        | list[int]
+        | list[list[int]],
+    ) -> list[str]:
         # [[0,1,2,3]] -> ["ARND"]
         x = np.array(x)
         if x.ndim == 1:
@@ -226,8 +249,12 @@ def custom_parse_PDB_biounits(x, atoms=["N", "CA", "C"], chain=None):
 
 
 def custom_parse_PDB(
-    path_to_pdb, input_chain_list=None, ca_only=False, side_chains=False, mut_chain=None
-):
+    path_to_pdb: str,
+    input_chain_list: list[str] | None = None,
+    ca_only: bool = False,
+    side_chains: bool = False,
+    mut_chain: str | None = None,
+) -> list[ProteinRecord]:
     c = 0
     pdb_dict_list = []
     init_alphabet = [
@@ -381,7 +408,10 @@ def custom_parse_PDB(
     return pdb_dict_list
 
 
-def idx_to_pdb_num(pdb, poslist):
+def idx_to_pdb_num(
+    pdb: ProteinRecord,
+    poslist: Int[np.ndarray, "mutations"] | list[int],
+) -> list[str]:
     # set up PDB resns and boundaries
     chains = [key[-1] for key in pdb.keys() if key.startswith("resn_list_")]
     resn_lists = [pdb[key] for key in pdb.keys() if key.startswith("resn_list")]
@@ -396,7 +426,9 @@ def idx_to_pdb_num(pdb, poslist):
     return [converter[pos] for pos in poslist]
 
 
-def distance_filter(df, pdb, distance=5.0):
+def distance_filter(
+    df: pd.DataFrame, pdb: ProteinRecord, distance: float = 5.0
+) -> pd.DataFrame:
     """filter df based on pdb distances"""
     dmat = get_dmat(pdb)
 
@@ -421,7 +453,7 @@ def distance_filter(df, pdb, distance=5.0):
     return df
 
 
-def renumber_pdb(df, pdb, mode):
+def renumber_pdb(df: pd.DataFrame, pdb: ProteinRecord, mode: str) -> pd.DataFrame:
     """Renumber output mutations to match PDB numbering for interpretation"""
 
     if (mode.lower() == "additive") or (mode.lower() == "epistatic"):
@@ -462,7 +494,7 @@ def renumber_pdb(df, pdb, mode):
     return df
 
 
-def disulfide_penalty(df, pdb, mode):
+def disulfide_penalty(df: pd.DataFrame, pdb: ProteinRecord, mode: str) -> pd.DataFrame:
     """Automatically detects disulfide breakage based on Cys-Cys distance."""
 
     # collect all SG coordinates from all chains
@@ -512,7 +544,7 @@ def disulfide_penalty(df, pdb, mode):
         )
 
 
-def load_pdb(fname, chainlist):
+def load_pdb(fname: str, chainlist: list[str] | None) -> ProteinRecord:
     chains = get_chains(fname, chainlist)
     pdb = custom_parse_PDB(fname, input_chain_list=chains, side_chains=True)[0]
     return pdb

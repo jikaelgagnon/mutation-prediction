@@ -4,17 +4,21 @@ Paper map: evaluates predicted versus measured stability changes and provides
 a residue-neighborhood count used to describe mutation-site context.
 """
 
-import torch
-from torch import nn
-from torchmetrics import R2Score, MeanSquaredError, SpearmanCorrCoef, PearsonCorrCoef
+from __future__ import annotations
 
 import argparse
+
 import omegaconf as OmegaConf
 import pandas as pd
+import torch
+from jaxtyping import Int
+from torch import Tensor, nn
+from torchmetrics import MeanSquaredError, PearsonCorrCoef, R2Score, SpearmanCorrCoef
 
 from mutation_prediction.thermo_mpnn_d.thermompnn.model.modules import get_protein_mpnn
-from mutation_prediction.thermo_mpnn_d.thermompnn.protein_mpnn_utils import tied_featurize
-
+from mutation_prediction.thermo_mpnn_d.thermompnn.protein_mpnn_utils import (
+    tied_featurize,
+)
 
 ALPHABET = 'ACDEFGHIKLMNPQRSTVWYX'
 
@@ -29,7 +33,15 @@ def get_metrics_full(device=None):
     }
 
 
-def compute_centrality(xyz, basis_atom: str = "CA", radius: float = 10.0, core_threshold: int = 20, surface_threshold: int = 15, backup_atom: str = "C", chain: str = 'A') -> torch.Tensor:
+def compute_centrality(
+    xyz: dict[str, list[list[float]]],
+    basis_atom: str = "CA",
+    radius: float = 10.0,
+    core_threshold: int = 20,
+    surface_threshold: int = 15,
+    backup_atom: str = "C",
+    chain: str = "A",
+) -> Int[Tensor, "length"]:
     """Expects ProteinMPNN feature dict and returns torch tensor of num_neighbors integers."""
     coords = xyz[basis_atom + f'_chain_{chain}']
     coords = torch.tensor(coords)

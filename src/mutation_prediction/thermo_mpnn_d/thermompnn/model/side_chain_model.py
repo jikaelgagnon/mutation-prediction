@@ -5,23 +5,25 @@ the ThermoMPNN-D mutation-site prediction heads that consume its embeddings
 are in ``v2_model.py``.
 """
 
-from __future__ import print_function
+from __future__ import annotations, print_function
 
 import torch
-
-import torch.utils
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.utils
+from jaxtyping import Float, Int, Real
+from torch import Tensor
 
 from mutation_prediction.thermo_mpnn_d.proteinmpnn.model_utils import (
-    ProteinFeatures,
-    EncLayer,
     DecLayer,
+    EncLayer,
     IPMPDecoder,
     IPMPEncoder,
-    gather_nodes,
+    ProteinFeatures,
     cat_neighbors_nodes,
+    gather_nodes,
 )
+
 
 class ProteinMPNN(nn.Module):
     def __init__(self, num_letters=21, node_features=128, edge_features=128,
@@ -95,7 +97,20 @@ class ProteinMPNN(nn.Module):
             if p.dim() > 1:
                 nn.init.xavier_uniform_(p)
 
-    def forward(self, X, S, mask, chain_M, residue_idx, chain_encoding_all):
+    def forward(
+        self,
+        X: Float[Tensor, "batch length atoms 3"],
+        S: Int[Tensor, "batch length"],
+        mask: Real[Tensor, "batch length"],
+        chain_M: Real[Tensor, "batch length"],
+        residue_idx: Int[Tensor, "batch length"],
+        chain_encoding_all: Int[Tensor, "batch length"],
+    ) -> tuple[
+        list[Float[Tensor, "batch length hidden"]],
+        Float[Tensor, "batch length embedding"],
+        Float[Tensor, "batch length vocab"],
+        Float[Tensor, "batch length neighbors hidden"],
+    ]:
         """ Graph-conditioned sequence model """
         device=X.device
         # Prepare node and edge embeddings

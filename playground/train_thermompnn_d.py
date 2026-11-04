@@ -1,6 +1,7 @@
 # /// script
 # requires-python = ">=3.13"
 # dependencies = [
+#     "jaxtyping>=0.3.3",
 #     "bio==1.8.4",
 #     "marimo>=0.25.1",
 #     "omegaconf>=2.3.0",

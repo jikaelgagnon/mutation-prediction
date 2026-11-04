@@ -5,27 +5,48 @@ structures; ``tied_featurize_mut`` forms the padded sequence/coordinate and
 mutation tensors passed to the transfer model.
 """
 
-import torch
-import pandas as pd
-import numpy as np
-import pickle
+from __future__ import annotations
+
+import itertools
 import os
-from Bio import pairwise2
-from tqdm import tqdm
+import pickle
 from copy import deepcopy
 from itertools import permutations
-import itertools
+from typing import Any
 
-from mutation_prediction.thermo_mpnn_d.thermompnn.protein_mpnn_utils import alt_parse_PDB, parse_PDB
+import numpy as np
+import pandas as pd
+import torch
+from Bio import pairwise2
+from tqdm import tqdm
+
+from mutation_prediction.tensor_types import (
+    MutationBatch,
+    ProteinRecord,
+)
 from mutation_prediction.thermo_mpnn_d.thermompnn.datasets.dataset_utils import (
+    ALPHABET,
     Mutation,
     seq1_index_to_seq2_index,
-    ALPHABET,
+)
+from mutation_prediction.thermo_mpnn_d.thermompnn.protein_mpnn_utils import (
+    alt_parse_PDB,
+    parse_PDB,
 )
 
 
-def tied_featurize_mut(batch, device='cpu', chain_dict=None, fixed_position_dict=None, omit_AA_dict=None, tied_positions_dict=None,
-                   pssm_dict=None, bias_by_res_dict=None, ca_only=False, side_chains=False):
+def tied_featurize_mut(
+    batch: list[ProteinRecord],
+    device: torch.device | str = "cpu",
+    chain_dict: dict[str, Any] | None = None,
+    fixed_position_dict: dict[str, Any] | None = None,
+    omit_AA_dict: dict[str, Any] | None = None,
+    tied_positions_dict: dict[str, Any] | None = None,
+    pssm_dict: dict[str, Any] | None = None,
+    bias_by_res_dict: dict[str, Any] | None = None,
+    ca_only: bool = False,
+    side_chains: bool = False,
+) -> MutationBatch | None:
     """ Pack and pad batch into torch tensors - modified to also handle mutation data"""
     alphabet = 'ACDEFGHIKLMNPQRSTVWYX'
     B = len(batch)
@@ -349,10 +370,10 @@ class ddgBenchDatasetv2(torch.utils.data.Dataset):
             
             self.pdb_data[i] = pdb[0]
             
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.pdb_data)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> ProteinRecord:
         """Batch retrieval fxn - do each row as its own item, for simplicity"""
 
         row = self.df.iloc[index]
@@ -500,10 +521,10 @@ class FireProtDatasetv2(torch.utils.data.Dataset):
             pdb = parse_PDB(pdb_file, side_chains=self.side_chains)
             self.pdb_data[wt_name] = pdb[0]
         
-    def __len__(self):
+    def __len__(self) -> int:
         return self.df.shape[0]
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> ProteinRecord:
 
         pdb_list = []
         row = self.df.iloc[index]
@@ -689,11 +710,11 @@ class MegaScaleDatasetv2(torch.utils.data.Dataset):
 
         self._sort_dataset()
 
-    def __len__(self):
+    def __len__(self) -> int:
         """Total sample count instead of batch count"""
         return self.df.shape[0]
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> ProteinRecord:
         """Batch retrieval fxn - each batch is list of protein-mutation pairs (can be different proteins)."""
         row = self.df.iloc[index]
 
@@ -1044,10 +1065,10 @@ class ProteinGymDataset(torch.utils.data.Dataset):
             pdb = alt_parse_PDB(pdb_file, input_chain_list=chain, side_chains=self.side_chains)
             self.pdb_data[p] = pdb[0]
             
-    def __len__(self):
+    def __len__(self) -> int:
         return self.df.shape[0]
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> ProteinRecord:
         """Batch retrieval fxn - do each row as its own item, for simplicity"""
 
         row = self.df.iloc[index]

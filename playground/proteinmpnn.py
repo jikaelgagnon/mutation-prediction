@@ -1,6 +1,7 @@
 # /// script
 # requires-python = ">=3.13"
 # dependencies = [
+#     "jaxtyping>=0.3.3",
 #     "altair==6.3.0",
 #     "bio==1.8.4",
 #     "marimo>=0.25.1",
@@ -472,7 +473,17 @@ def _(
     model_inputs = tuple(tensor.to(active_device) for tensor in model_inputs)
     feature_capture = {}
 
-    def capture_protein_features(_module, _inputs, output):
+    from jaxtyping import Float, Int
+    from torch import Tensor
+
+    def capture_protein_features(
+        _module: torch.nn.Module,
+        _inputs: tuple[object, ...],
+        output: tuple[
+            Float[Tensor, "batch length neighbors edge_features"],
+            Int[Tensor, "batch length neighbors"],
+        ],
+    ) -> None:
         feature_capture["E"], feature_capture["E_idx"] = output
 
     feature_hook = protein_mpnn.features.register_forward_hook(

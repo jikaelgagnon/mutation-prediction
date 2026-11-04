@@ -8,21 +8,33 @@ Shape notation: B = batch size, L = padded sequence length, M = mutations per
 example, E = encoder width (128), K = selected decoder layers, D = E * (K + 1).
 """
 
+from __future__ import annotations
+
+import pytorch_lightning as pl
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from jaxtyping import Float, Int, Real
+from torch import Tensor
 
+from mutation_prediction.tensor_types import (
+    MutationBatch,
+)
 from mutation_prediction.thermo_mpnn_d.thermompnn.model.modules import (
     get_protein_mpnn,
 )
-
-import pytorch_lightning as pl
-
-import torch.nn.functional as F
-
-from mutation_prediction.thermo_mpnn_d.thermompnn.trainer.trainer_utils import get_metrics, get_metrics_functional
+from mutation_prediction.thermo_mpnn_d.thermompnn.trainer.trainer_utils import (
+    get_metrics,
+    get_metrics_functional,
+)
 
 
-def _check_sequence_match(S, wt, mut, pos):
+def _check_sequence_match(
+    S: Int[Tensor, "batch length"],
+    wt: Int[Tensor, "batch mutations"],
+    mut: Int[Tensor, "batch mutations"],
+    pos: Int[Tensor, "batch mutations"],
+) -> Int[Tensor, "batch length"]:
     """
     Check sequence tokens against the supplied wild-type mutation identities.
 
@@ -59,7 +71,21 @@ class PooledAttentionModel(nn.Module):
         self.attn_pool = nn.Linear(EMBED_DIM * (self.cfg.model.num_final_layers + 1), 1)
         self.final_layer = nn.Linear(EMBED_DIM * (self.cfg.model.num_final_layers + 1), 1)
 
-    def forward(self, X, S, mask, chain_M, residue_idx, chain_encoding_all, mut_positions, mut_wildtype_AAs, mut_mutant_AAs, mut_ddGs, atom_mask, esm_emb=None):
+    def forward(
+        self,
+        X: Float[Tensor, "batch length atoms 3"],
+        S: Int[Tensor, "batch length"],
+        mask: Real[Tensor, "batch length"],
+        chain_M: Real[Tensor, "batch length"],
+        residue_idx: Int[Tensor, "batch length"],
+        chain_encoding_all: Int[Tensor, "batch length"],
+        mut_positions: Int[Tensor, "batch mutations"],
+        mut_wildtype_AAs: Int[Tensor, "batch mutations"],
+        mut_mutant_AAs: Int[Tensor, "batch mutations"],
+        mut_ddGs: Float[Tensor, "batch 1"],
+        atom_mask: Real[Tensor, "batch length atoms"],
+        esm_emb: Float[Tensor, "batch length esm_features"] | None = None,
+    ) -> Float[Tensor, "batch 1"]:
         """Return [B, 1] predictions for a batch with M mutations per example.
 
         X: backbone coordinates [B, L, atoms, 3]; S: sequence token IDs [B, L].
@@ -175,10 +201,42 @@ class PooledAttentionModelPL(pl.LightningModule):
 
     # Like nn.Module.forward, this defines inference; it does not start training.
     # Docs: https://github.com/Lightning-AI/pytorch-lightning/blob/master/docs/source-pytorch/common/lightning_module.rst#inference-in-research
-    def forward(self, *args):
-        return self.model(*args)
+    def forward(
+        self,
+        X: Float[Tensor, "batch length atoms 3"],
+        S: Int[Tensor, "batch length"],
+        mask: Real[Tensor, "batch length"],
+        chain_M: Real[Tensor, "batch length"],
+        residue_idx: Int[Tensor, "batch length"],
+        chain_encoding_all: Int[Tensor, "batch length"],
+        mut_positions: Int[Tensor, "batch mutations"],
+        mut_wildtype_AAs: Int[Tensor, "batch mutations"],
+        mut_mutant_AAs: Int[Tensor, "batch mutations"],
+        mut_ddGs: Float[Tensor, "batch 1"],
+        atom_mask: Real[Tensor, "batch length atoms"],
+        esm_emb: Float[Tensor, "batch length esm_features"] | None = None,
+    ) -> Float[Tensor, "batch 1"]:
+        return self.model(
+            X,
+            S,
+            mask,
+            chain_M,
+            residue_idx,
+            chain_encoding_all,
+            mut_positions,
+            mut_wildtype_AAs,
+            mut_mutant_AAs,
+            mut_ddGs,
+            atom_mask,
+            esm_emb,
+        )
 
-    def shared_eval(self, batch, batch_idx, prefix):
+    def shared_eval(
+        self,
+        batch: MutationBatch,
+        batch_idx: int,
+        prefix: str,
+    ) -> Float[Tensor, ""] | None:
         """Run the common prediction/loss/logging path for each dataset split."""
         # Keep the 12-field tuple order produced by tied_featurize_mut. lengths
         # is unpacked for that interface but is not consumed by the model.
@@ -219,24 +277,28 @@ class PooledAttentionModelPL(pl.LightningModule):
     # automatic gradient computation and optimizer updates; no backward() here.
     # Guide: https://github.com/Lightning-AI/pytorch-lightning/blob/master/docs/source-pytorch/common/optimization.rst
     # Hook: https://github.com/Lightning-AI/pytorch-lightning/blob/master/docs/source-pytorch/common/lightning_module.rst#training-loop
-    def training_step(self, batch, batch_idx):
+    def training_step(
+        self, batch: MutationBatch, batch_idx: int
+    ) -> Float[Tensor, ""] | None:
         return self.shared_eval(batch, batch_idx, 'train')
 
     # Trainer runs validation in evaluation mode with gradients disabled.
     # This measures performance without updating model weights.
     # Docs: https://github.com/Lightning-AI/pytorch-lightning/blob/master/docs/source-pytorch/common/lightning_module.rst#validation-loop
-    def validation_step(self, batch, batch_idx):
+    def validation_step(
+        self, batch: MutationBatch, batch_idx: int
+    ) -> Float[Tensor, ""] | None:
         return self.shared_eval(batch, batch_idx, 'val')
 
     # Called by Trainer.test(), rather than the Trainer.fit() used in train.py.
     # Docs: https://github.com/Lightning-AI/pytorch-lightning/blob/master/docs/source-pytorch/common/lightning_module.rst#test-loop
-    def test_step(self, batch, batch_idx):
+    def test_step(self, batch: MutationBatch, batch_idx: int) -> Float[Tensor, ""] | None:
         return self.shared_eval(batch, batch_idx, 'test')
 
     # Trainer calls this hook to obtain the optimizer and optional scheduler.
     # See the configure_optimizers docstring for return formats and scheduler monitoring:
     # https://github.com/Lightning-AI/pytorch-lightning/blob/master/src/lightning/pytorch/core/module.py
-    def configure_optimizers(self):
+    def configure_optimizers(self) -> torch.optim.Optimizer | dict[str, object]:
         """Train the attention/readout layers and optionally fine-tune ProteinMPNN."""
         # When unfrozen, the encoder can use its own learning rate. Otherwise it
         # is excluded from the optimizer; the loader handles requires_grad flags.

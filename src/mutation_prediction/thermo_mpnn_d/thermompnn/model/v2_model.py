@@ -6,21 +6,33 @@ extension's AB/BA order-specific predictions (preprint Fig. 1A-C). Optional
 distance, edge, attention, and side-chain features are wired here.
 """
 
+from __future__ import annotations
+
+from itertools import permutations
+
+import numpy as np
 import torch
 import torch.nn as nn
-from itertools import permutations
-import numpy as np
+from jaxtyping import Float, Int, Real, Shaped
+from torch import Tensor
 
 from mutation_prediction.thermo_mpnn_d.thermompnn.model.modules import (
-    get_protein_mpnn,
     LightAttention,
     MPNNLayer,
     SideChainModule,
+    get_protein_mpnn,
 )
-from mutation_prediction.thermo_mpnn_d.thermompnn.model.side_chain_model import get_protein_mpnn_sca
+from mutation_prediction.thermo_mpnn_d.thermompnn.model.side_chain_model import (
+    get_protein_mpnn_sca,
+)
 
 
-def batched_index_select(input, dim, index):
+def batched_index_select(
+    input: Shaped[Tensor, "batch *features"],
+    dim: int,
+    index: Int[Tensor, "batch selected"],
+) -> Shaped[Tensor, "batch *selected_features"]:
+    """Replace axis dim with selected indices; preserve every other input axis."""
     for ii in range(1, len(input.shape)):
         if ii != dim:
             index = index.unsqueeze(ii)
@@ -30,7 +42,14 @@ def batched_index_select(input, dim, index):
     index = index.expand(expanse)
     return torch.gather(input, dim, index)
 
-def _dist(X, mask, eps=1E-6, top_k=48):
+def _dist(
+    X: Float[Tensor, "batch length 3"],
+    mask: Real[Tensor, "batch length"],
+    eps: float = 1e-06,
+    top_k: int = 48,
+) -> tuple[
+    Float[Tensor, "batch length neighbors"], Int[Tensor, "batch length neighbors"]
+]:
     """ProteinMPNN distance calculation"""
     mask_2D = torch.unsqueeze(mask, 1) * torch.unsqueeze(mask, 2)
     dX = torch.unsqueeze(X, 1) - torch.unsqueeze(X, 2)
@@ -40,7 +59,9 @@ def _dist(X, mask, eps=1E-6, top_k=48):
     D_neighbors, E_idx = torch.topk(D_adjust, np.minimum(top_k, X.shape[1]), dim=-1, largest=False)
     return D_neighbors, E_idx
 
-def _get_cbeta(X):
+def _get_cbeta(
+    X: Float[Tensor, "batch length atoms 3"],
+) -> Float[Tensor, "batch length atoms+1 3"]:
     """ProteinMPNN virtual Cb calculation"""
     b = X[:, :, 1, :] - X[:, :, 0, :]
     c = X[:, :, 2, :] - X[:, :, 1, :]
@@ -49,7 +70,12 @@ def _get_cbeta(X):
     Cb = Cb.unsqueeze(2)
     return torch.cat([Cb, X], axis=2)
 
-def _check_sequence_match(S, wt, mut, pos):
+def _check_sequence_match(
+    S: Int[Tensor, "batch length"],
+    wt: Int[Tensor, "batch mutations"],
+    mut: Int[Tensor, "batch mutations"],
+    pos: Int[Tensor, "batch mutations"],
+) -> Int[Tensor, "batch length"]:
     """
     Checks if S matches wt amino acids at the specified positions. 
     If not matching, adjusts S to match wt.
@@ -123,7 +149,21 @@ class TransferModelv2(nn.Module):
         if prediction_head is not None:
             self.ddg_out = prediction_head
 
-    def forward(self, X, S, mask, chain_M, residue_idx, chain_encoding_all, mut_positions, mut_wildtype_AAs, mut_mutant_AAs, mut_ddGs, atom_mask, esm_emb=None):
+    def forward(
+        self,
+        X: Float[Tensor, "batch length atoms 3"],
+        S: Int[Tensor, "batch length"],
+        mask: Real[Tensor, "batch length"],
+        chain_M: Real[Tensor, "batch length"],
+        residue_idx: Int[Tensor, "batch length"],
+        chain_encoding_all: Int[Tensor, "batch length"],
+        mut_positions: Int[Tensor, "batch mutations"],
+        mut_wildtype_AAs: Int[Tensor, "batch mutations"],
+        mut_mutant_AAs: Int[Tensor, "batch mutations"],
+        mut_ddGs: Float[Tensor, "batch 1"],
+        atom_mask: Real[Tensor, "batch length atoms"],
+        esm_emb: Float[Tensor, "batch length esm_features"] | None = None,
+    ) -> tuple[Float[Tensor, "batch 1"] | Float[Tensor, "batch mutations"], None]:
         """Vectorized fwd function for arbitrary batches of mutations"""
 
         # getting ProteinMPNN embeddings (use only backbone atoms)
@@ -351,7 +391,7 @@ class TransferModelv2(nn.Module):
                        
         return ddg, None
 
-    def _set_model_dims(self):
+    def _set_model_dims(self) -> tuple[int, int, int]:
         """
         Parse various config options to properly set input, output, and vocab dimensions
         """
@@ -414,7 +454,21 @@ class TransferModelv2Siamese(nn.Module):
         if prediction_head is not None:
             self.ddg_out = prediction_head
 
-    def forward(self, X, S, mask, chain_M, residue_idx, chain_encoding_all, mut_positions, mut_wildtype_AAs, mut_mutant_AAs, mut_ddGs, atom_mask, esm_emb=None):
+    def forward(
+        self,
+        X: Float[Tensor, "batch length atoms 3"],
+        S: Int[Tensor, "batch length"],
+        mask: Real[Tensor, "batch length"],
+        chain_M: Real[Tensor, "batch length"],
+        residue_idx: Int[Tensor, "batch length"],
+        chain_encoding_all: Int[Tensor, "batch length"],
+        mut_positions: Int[Tensor, "batch mutations"],
+        mut_wildtype_AAs: Int[Tensor, "batch mutations"],
+        mut_mutant_AAs: Int[Tensor, "batch mutations"],
+        mut_ddGs: Float[Tensor, "batch 1"],
+        atom_mask: Real[Tensor, "batch length atoms"],
+        esm_emb: Float[Tensor, "batch length esm_features"] | None = None,
+    ) -> tuple[Float[Tensor, "batch 1"], Float[Tensor, "batch 1"]]:
         """Vectorized fwd function for arbitrary batches of mutations"""
 
         # check if S matches mut_wildtype_AAs - if not, overwrite it
@@ -557,7 +611,7 @@ class TransferModelv2Siamese(nn.Module):
 
         return ddG_A, ddG_B
      
-    def _set_model_dims(self):
+    def _set_model_dims(self) -> tuple[int, int, int]:
         """
         Parse various config options to properly set input, output, and vocab dimensions
         """

@@ -5,14 +5,23 @@ for the underlying structural sequence model; ThermoMPNN-D mutation datasets
 and their featurization live in ``thermompnn/datasets``.
 """
 
-import torch
-from torch.utils.data import DataLoader
+from __future__ import annotations
+
 import csv
-from dateutil import parser
-import numpy as np
-import time
-import random
 import os
+import random
+import time
+from typing import Any, Iterable, Iterator, Sequence
+
+import numpy as np
+import torch
+from dateutil import parser
+from torch.utils.data import DataLoader
+
+from mutation_prediction.tensor_types import (
+    AssemblyRecord,
+    ProteinRecord,
+)
 
 
 def get_mean_stats(dir):
@@ -81,10 +90,10 @@ class StructureDataset():
                 #print('{} entries ({} loaded) in {:.1f} s'.format(len(self.data), i+1, elapsed))
 
             #print('Discarded', discard_count)
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.data)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> ProteinRecord:
         return self.data[idx]
 
 
@@ -112,10 +121,10 @@ class StructureLoader():
             clusters.append(batch)
         self.clusters = clusters
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.clusters)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[list[ProteinRecord]]:
         np.random.shuffle(self.clusters)
         for b_idx in self.clusters:
             batch = [self.dataset[i] for i in b_idx]
@@ -166,7 +175,13 @@ def get_std_opt(parameters, d_model, step):
     )
 
 
-def get_pdbs(data_loader, repeat=1, max_length=10000, num_units=1000000, side_chains=False):
+def get_pdbs(
+    data_loader: Iterable[dict[str, Any]],
+    repeat: int = 1,
+    max_length: int = 10000,
+    num_units: int = 1000000,
+    side_chains: bool = False,
+) -> list[ProteinRecord]:
     init_alphabet = ['A', 'B', 'C', 'D', 'E', 'F', 'G','H', 'I', 'J','K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T','U', 'V','W','X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g','h', 'i', 'j','k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't','u', 'v','w','x', 'y', 'z']
     extra_alphabet = [str(item) for item in list(np.arange(300))]
     chain_alphabet = init_alphabet + extra_alphabet
@@ -253,10 +268,10 @@ class PDB_dataset(torch.utils.data.Dataset):
         self.loader = loader
         self.params = params
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.IDs)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> AssemblyRecord:
         ID = self.IDs[index]
         sel_idx = 0
         #sel_idx = np.random.randint(0, len(self.train_dict[ID]))
@@ -265,7 +280,7 @@ class PDB_dataset(torch.utils.data.Dataset):
 
 
 
-def loader_pdb(item,params):
+def loader_pdb(item: Sequence[str], params: dict[str, Any]) -> AssemblyRecord:
 
     pdbid,chid = item[0].split('_')
     PREFIX = "%s/pdb/%s/%s"%(params['DIR'],pdbid[1:3],pdbid)

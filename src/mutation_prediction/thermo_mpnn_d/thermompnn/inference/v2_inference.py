@@ -5,20 +5,44 @@ zero-shot sequence-probability model, and collects predictions and regression
 metrics for the stability-change target.
 """
 
-import torch
-from torch.utils.data import DataLoader
+from __future__ import annotations
 
 import os
-from tqdm import tqdm
+
 import numpy as np
 import pandas as pd
+import torch
+from jaxtyping import Float, Int
+from omegaconf import DictConfig
+from torch import Tensor
+from torch.utils.data import DataLoader
+from tqdm import tqdm
 
-from mutation_prediction.thermo_mpnn_d.thermompnn.datasets.v2_datasets import MegaScaleDatasetv2, FireProtDatasetv2, ddgBenchDatasetv2, tied_featurize_mut, ProteinGymDataset
-from mutation_prediction.thermo_mpnn_d.thermompnn.inference.inference_utils import get_metrics_full
-from mutation_prediction.thermo_mpnn_d.thermompnn.model.v2_model import batched_index_select
+from mutation_prediction.thermo_mpnn_d.thermompnn.datasets.v2_datasets import (
+    FireProtDatasetv2,
+    MegaScaleDatasetv2,
+    ProteinGymDataset,
+    ddgBenchDatasetv2,
+    tied_featurize_mut,
+)
+from mutation_prediction.thermo_mpnn_d.thermompnn.inference.inference_utils import (
+    get_metrics_full,
+)
+from mutation_prediction.thermo_mpnn_d.thermompnn.model.v2_model import (
+    batched_index_select,
+)
 
 
-def run_prediction_batched(name, model, dataset_name, dataset, results, keep=True, zero_shot=False, cfg=None):
+def run_prediction_batched(
+    name: str,
+    model: torch.nn.Module,
+    dataset_name: str,
+    dataset: torch.utils.data.Dataset,
+    results: pd.DataFrame,
+    keep: bool = True,
+    zero_shot: bool = False,
+    cfg: DictConfig | None = None,
+) -> pd.DataFrame:
     """Standard inference for CSV/PDB based dataset in batched models"""
 
     device = torch.device("cuda:0" if (torch.cuda.is_available()) else "cpu")
@@ -137,7 +161,7 @@ def run_prediction_batched(name, model, dataset_name, dataset, results, keep=Tru
     return tmp
 
 
-def load_v2_dataset(cfg):
+def load_v2_dataset(cfg: DictConfig) -> torch.utils.data.Dataset:
     """Parses input config and sets up proper dataset for INFERENCE only"""
 
     ds_all = {
@@ -179,8 +203,18 @@ def load_v2_dataset(cfg):
         return ds(cfg, pdb_loc, csv_loc, flip=flip)
 
 
-def zero_shot_convert(preds, positions, mut_AAs, wt_AAs=None):
-    """Convert raw ProteinMPNN log-probs into ddG pseudo-values"""
+def zero_shot_convert(
+    preds: Float[Tensor, "batch length vocab"],
+    positions: Int[Tensor, "batch mutations"],
+    mut_AAs: Int[Tensor, "batch mutations"],
+    wt_AAs: Int[Tensor, "batch mutations"] | None = None,
+) -> Float[Tensor, "batch"] | Float[Tensor, "batch mutations mutations"]:
+    """Convert log-probabilities to mutation scores.
+
+    A single site returns [batch]. Multiple sites retain both gather axes and
+    return [batch, mutations, mutations]: every site against every supplied AA.
+    The batch axis is preserved even when batch size is one.
+    """
 
     # index positions 
     preds = batched_index_select(preds, 1, positions)

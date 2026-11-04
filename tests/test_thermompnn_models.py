@@ -1,20 +1,24 @@
+
+from __future__ import annotations
+
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import torch
+from jaxtyping import Float, Int, Real
 from omegaconf import OmegaConf
-from torch import nn
+from torch import Tensor, nn
 
-from mutation_prediction.thermo_mpnn_d.thermompnn.model.v2_model import (
-    TransferModelv2,
-    TransferModelv2Siamese,
-)
 from mutation_prediction.thermo_mpnn_d.thermompnn.inference.inference_utils import (
     get_metrics_full,
 )
 from mutation_prediction.thermo_mpnn_d.thermompnn.inference.run_inference import (
     inference,
+)
+from mutation_prediction.thermo_mpnn_d.thermompnn.model.v2_model import (
+    TransferModelv2,
+    TransferModelv2Siamese,
 )
 from mutation_prediction.thermo_mpnn_d.thermompnn.trainer.v2_trainer import (
     TransferModelPLv2,
@@ -27,7 +31,20 @@ class StubProteinEncoder(nn.Module):
         super().__init__()
         self.sequence_embedding = nn.Embedding(21, 128)
 
-    def forward(self, coordinates, sequence, mask, chain_mask, residue_idx, chain_encoding):
+    def forward(
+        self,
+        coordinates: Float[Tensor, "batch length atoms 3"],
+        sequence: Int[Tensor, "batch length"],
+        mask: Real[Tensor, "batch length"],
+        chain_mask: Real[Tensor, "batch length"],
+        residue_idx: Int[Tensor, "batch length"],
+        chain_encoding: Int[Tensor, "batch length"],
+    ) -> tuple[
+        list[Float[Tensor, "batch length hidden"]],
+        Float[Tensor, "batch length hidden"],
+        None,
+        Float[Tensor, "batch length 1 hidden"],
+    ]:
         embeddings = self.sequence_embedding(sequence)
         hidden = [embeddings, embeddings, embeddings]
         edges = embeddings.new_zeros((*embeddings.shape[:2], 1, embeddings.shape[-1]))
