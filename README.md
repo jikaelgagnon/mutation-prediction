@@ -265,15 +265,44 @@ To enable Weights & Biases logging, uncomment the `project` setting in
 `configs/model_train_epistatic.yaml` and authenticate with W&B before training.
 With `project` omitted, W&B logging is disabled.
 
+### Train epsilon predictions
+
+To train `PooledAttentionModelPL` to output epsilon hat directly, run:
+
+```bash
+uv run python -m mutation_prediction.model.train \
+  configs/proteinmpnn_paths.example.yaml \
+  configs/model_train_epsilon.yaml
+```
+
+This reads `data/processed/thermompnn/Megascale-D-epsilon.csv` and minimizes
+`mean((epsilon_hat - epsilon_target) ** 2)`, where
+`epsilon_target = true_ddg_12 - baseline_ddg`. Epsilon labels keep their CSV
+sign; the legacy ddG label negation is not applied. The model learns the
+correction to the cached ThermoMPNN single-mutant baseline, including its
+prediction errors. To reconstruct the double-mutant prediction in the CSV's
+sign convention, use `predicted_ddg_12 = baseline_ddg + epsilon_hat`.
+
+Training uses the existing protein-level train/validation split without
+augmentation. The ProteinMPNN encoder is frozen by default. Checkpoints are
+selected by the lowest `val_epsilon_mse` and saved alongside `last.ckpt` and
+the resolved `config.yaml` in `checkpoints/model-epsilon/`. The learning-rate
+scheduler also monitors `val_epsilon_mse`.
+
+Append `--fast-dev-run` for one training and validation batch. To resume a full
+run, append `--resume checkpoints/model-epsilon/last.ckpt`. Adjust the epsilon
+YAML to change batch size, learning rate, epochs, or data-loader workers.
+
 ## Training configurations
 
-Only three configs are needed for our model:
+The model uses these configs:
 
 | Config | Purpose |
 | --- | --- |
 | `configs/proteinmpnn_paths.example.yaml` | Shared data paths, ProteinMPNN checkpoints, and device selection. |
 | `configs/model_train_epistatic.yaml` | Measured double mutants only, without augmentation. |
 | `configs/model_train_epistatic_augmented.yaml` | Measured doubles plus biased augmentation (`range: 3`). |
+| `configs/model_train_epsilon.yaml` | Cached epsilon targets for direct residual prediction. |
 
 For augmented training, prepare `data/raw/megascale/csv/Megascale-SD-full.csv`
 by combining `Megascale-S-full.csv` and `Megascale-D-full.csv`, preserving their

@@ -1,4 +1,4 @@
-"""Compose mutation feature extractors and prediction heads for ΔΔG regression."""
+"""Compose mutation feature extractors and heads for ΔΔG or epsilon regression."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from jaxtyping import Float, Int, Real
+from omegaconf import OmegaConf
 from torch import Tensor
 
 from mutation_prediction.model.features import ProteinMPNNFeatureExtractor
@@ -42,7 +43,7 @@ class MutationPredictionModel(nn.Module):
         atom_mask: Real[Tensor, "batch length atoms"],
         esm_emb: Float[Tensor, "batch length esm_features"] | None = None,
     ) -> Float[Tensor, "batch 1"]:
-        """Predict ΔΔG; targets, atom_mask, and esm_emb are interface-only inputs."""
+        """Predict the configured scalar; targets and auxiliary masks are interface-only."""
         final_embed = self.feature_extractor(
             X,
             S,
@@ -84,14 +85,17 @@ class PooledAttentionModelPL(pl.LightningModule):
         model: MutationPredictionModel | None = None,
     ):
         super().__init__()
+        if isinstance(cfg, dict):
+            cfg = OmegaConf.create(cfg)
         if model is not None and protein_encoder is not None:
             raise ValueError("Supply protein_encoder inside model, or use the default model")
         self.model = model if model is not None else PooledAttentionModel(
             cfg, protein_encoder=protein_encoder
         )
         self.cfg = cfg
+        self.save_hyperparameters({'cfg': OmegaConf.to_container(cfg, resolve=True)})
         self.dev = torch.device("cuda:0" if (torch.cuda.is_available()) else "cpu")
-        self.out = ['ddG']
+        self.out = [cfg.model.get('target_name', 'ddG')]
         self.metrics = nn.ModuleDict()
         
         # Separate metric instances prevent train/validation/test state mixing.
@@ -152,31 +156,19 @@ class PooledAttentionModelPL(pl.LightningModule):
 
         pred_ddG = self(X, S, mask, chain_M, residue_idx, chain_encoding_all, mut_positions, mut_wildtype_AAs, mut_mutant_AAs, mut_ddGs, atom_mask)
 
-        # Supervise the joint prediction with the measured ΔΔG, both [B, 1].
+        # The target slot holds either measured ΔΔG or cached epsilon, both [B, 1].
         mse = F.mse_loss(pred_ddG, mut_ddGs) 
 
-        # Update stateful metrics and log epoch-level values (including val_ddG_mse).
+        # Update split-specific metrics and log epoch-level ddG/epsilon scores.
         for out in self.out:
             for name, metric in self.metrics[f"{prefix}_metrics"][out].items():
-                try:
-                    metric.update(torch.squeeze(pred_ddG), torch.squeeze(mut_ddGs))
-                except IndexError:
-                    continue
-
-            for name, metric in self.metrics[f"{prefix}_metrics"][out].items():
-                try:
-                    metric.compute()
-                except ValueError:
-                    continue
+                metric.update(pred_ddG.reshape(-1), mut_ddGs.reshape(-1))
                 # Record epoch metrics and display them in the progress bar.
-                # self.log also exposes val_ddG_mse to callbacks and the scheduler.
+                # self.log exposes the target's MSE to callbacks and the scheduler.
                 # Docs: https://github.com/Lightning-AI/pytorch-lightning/blob/master/docs/source-pytorch/common/lightning_module.rst#train-epoch-level-metrics
                 self.log(f"{prefix}_{out}_{name}", metric, prog_bar=True, on_step=False, on_epoch=True,
-                            batch_size=len(batch))
+                            batch_size=mut_ddGs.shape[0])
             
-        # Preserve the existing convention of skipping a zero-loss batch.
-        if mse == 0.0:
-            return None
         return mse
 
     # Trainer calls this for each training batch. Returning the loss enables
@@ -224,16 +216,16 @@ class PooledAttentionModelPL(pl.LightningModule):
             param_list.append({"params": head_params})
         opt = torch.optim.AdamW(param_list, lr=self.cfg.training.learn_rate)
 
-        if self.cfg.training.lr_schedule: # enable additional lr scheduler conditioned on val ddG mse
+        if self.cfg.training.lr_schedule:
             # Halve the learning rate when validation MSE stops improving.
             # Lightning steps the scheduler using the logged metric named by
-            # monitor below; that name must match the validation self.log call.
+            # monitor below; that name must match the target's validation log.
             lr_sched = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=opt, mode='min', factor=0.5)
             print('Enabled LR Schedule!')
             return {
                 'optimizer': opt,
                 'lr_scheduler': lr_sched,
-                'monitor': f'val_ddG_mse'
+                'monitor': f'val_{self.out[0]}_mse'
             }
         else:
             return opt

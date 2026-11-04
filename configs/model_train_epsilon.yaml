@@ -1,0 +1,29 @@
+name: pooled_attention_epsilon
+
+data:
+  dataset: megascale
+  mut_types: [double]
+  splits: [train, val]
+  target_column: epsilon_target
+
+data_loc:
+  megascale_csv: data/processed/thermompnn/Megascale-D-epsilon.csv
+
+training:
+  seed: 42
+  num_workers: 4
+  output_dir: checkpoints/model-epsilon
+  learn_rate: 0.00001
+  epochs: 100
+  lr_schedule: true
+  batch_size: 256
+  shuffle: true
+  checkpoint_metric: mse
+
+model:
+  target_name: epsilon
+  mutant_embedding: true
+  num_final_layers: 2
+  freeze_weights: true
+  load_pretrained: true
+  proteinmpnn_dropout: 0.0

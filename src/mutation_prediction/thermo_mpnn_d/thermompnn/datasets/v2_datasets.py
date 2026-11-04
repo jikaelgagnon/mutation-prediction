@@ -557,6 +557,14 @@ class MegaScaleDatasetv2(torch.utils.data.Dataset):
 
         self.cfg = cfg
         self.split = split  # which split to retrieve
+        self.target_column = cfg.data.get('target_column', 'ddG_ML')
+        if self.target_column not in ('ddG_ML', 'epsilon_target'):
+            raise ValueError("data.target_column must be ddG_ML or epsilon_target")
+        if self.target_column == 'epsilon_target':
+            if (list(cfg.data.mut_types) != ['double'] or cfg.data.get('epi', False)
+                    or cfg.data.get('pick') is not None or flip_sign
+                    or split not in ('train', 'val', 'test')):
+                raise ValueError("Epsilon targets require unmodified double mutants and train/val/test splits")
 
         if ('cdna' in self.split) or ('denovo' in self.split):
             # load ME dataset through separate process to ensure compatibility
@@ -624,7 +632,12 @@ class MegaScaleDatasetv2(torch.utils.data.Dataset):
         else:
             fname = self.cfg.data_loc.megascale_csv
             # only load rows needed to save memory
-            df = pd.read_csv(fname, usecols=["ddG_ML", "mut_type", "WT_name", "aa_seq"])
+            columns = list(dict.fromkeys(["ddG_ML", "mut_type", "WT_name", "aa_seq", self.target_column]))
+            df = pd.read_csv(fname, usecols=columns)
+            if self.target_column == 'epsilon_target':
+                df['epsilon_target'] = pd.to_numeric(df['epsilon_target'], errors='raise')
+                if not np.isfinite(df['epsilon_target'].to_numpy()).all():
+                    raise ValueError("epsilon_target must contain only finite numeric values")
             # remove unreliable data and insertion/deletion mutations
             df = df.loc[df.ddG_ML != '-', :].reset_index(drop=True)
             df = df.loc[~df.mut_type.str.contains("ins") & ~df.mut_type.str.contains("del"), :].reset_index(drop=True)
@@ -780,7 +793,10 @@ class MegaScaleDatasetv2(torch.utils.data.Dataset):
                                 
         tmp_pdb = deepcopy(pdb) # this is hacky but it is needed or else it overwrites all PDBs with the last data point
 
-        ddG = -1 * float(row.ddG_ML)
+        # Legacy ddG training negates MegaScale labels. Residual training must
+        # preserve epsilon_target = true_ddg_12 - baseline_ddg exactly as cached.
+        sign = -1 if self.target_column == 'ddG_ML' else 1
+        ddG = sign * float(row[self.target_column])
         tmp_pdb['mutation'] = Mutation(pos_list, wt_list, mut_list, ddG, row.WT_name)
         return tmp_pdb
 
