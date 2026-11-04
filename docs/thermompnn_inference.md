@@ -85,6 +85,92 @@ chains, residue mapping, and checkpoint. Augmented examples using a modeled
 single-mutant reference need predictions on that reference, not the original
 WT. Retain experimental double-mutant targets alongside the baseline values.
 
+## Precompute predictions for measured MegaScale-D pairs
+
+From the repository root:
+
+```bash
+uv run python playground/precompute_megascale_ddg.py
+```
+
+The defaults use `Megascale-D-full.csv`, the existing WT PDB directory, and
+`checkpoints/thermompnn/ThermoMPNN-ens1.ckpt`. Device selection defaults to CUDA
+when available, otherwise CPU; override with `--device cpu` or `--device cuda`.
+This export uses measured double mutants only and requires no Rosetta structures.
+
+Output:
+
+```text
+data/processed/thermompnn/Megascale-D-single-predictions.csv
+data/processed/thermompnn/Megascale-D-single-predictions.metadata.json
+```
+
+Each input pair keeps its original columns and row order, with these additions:
+
+| Column | Meaning |
+| --- | --- |
+| `mutation_1`, `mutation_2` | Constituent substitutions, in the original pair's order. |
+| `pred_ddg_1`, `pred_ddg_2` | ThermoMPNN single-mutant ΔΔGs on the same WT background. |
+| `baseline_ddg` | Sum of the two single-mutant predictions. |
+| `true_ddg_12` | Experimental `ddG_ML`, positive for destabilization. |
+| `epsilon_target` | `true_ddg_12 - baseline_ddg`, the scalar residual training target. |
+
+The exporter validates both mutation identities and reconstructs the WT sequence
+from each row's double-mutant `aa_seq`. It requires that sequence to match the
+selected PDB chain exactly. Missing files, sequence mismatches, malformed pairs,
+and nonfinite predictions stop the export with an error. It does not silently
+drop rows. One encoder pass per WT protein supplies predictions reused across
+all its pairs. The metadata records the input, checkpoint, and structure SHA-256
+hashes, model, device, chain, and row/protein/unique-mutation counts.
+
+Input labels, including `ddG_ML`, are copied without sign changes. The published
+MegaScale-D CSVs and the predictions use kcal/mol with positive values indicating
+destabilization. Both signs therefore agree when calculating `epsilon_target`.
+Load this target directly for residual training: the existing
+`MegaScaleDatasetv2.__getitem__` negates `ddG_ML` and does not yet select the new
+target column. This export does not change the training loader.
+
+To export a particular existing split or use other paths:
+
+```bash
+uv run python playground/precompute_megascale_ddg.py \
+  --input-csv data/raw/megascale/csv/Megascale-D-train.csv \
+  --pdb-dir data/raw/megascale/pdb \
+  --checkpoint checkpoints/thermompnn/ThermoMPNN-ens1.ckpt \
+  --device cpu \
+  --output data/processed/thermompnn/Megascale-D-train-predictions.csv
+```
+
+The script does not create or alter train/validation/test splits.
+
+### Add epsilon targets to an existing prediction export
+
+To reuse predictions already computed, without loading ThermoMPNN or rerunning
+inference:
+
+```bash
+uv run python playground/precompute_megascale_ddg.py \
+  --predictions-csv data/processed/thermompnn/Megascale-D-single-predictions.csv \
+  --output data/processed/thermompnn/Megascale-D-epsilon.csv
+```
+
+This creates `Megascale-D-epsilon.csv` and a corresponding metadata JSON. It
+retains the prediction checkpoint/structure provenance from the input's metadata
+when present, adds a hash of the cached prediction CSV, and records the target
+formula and sign convention. Nonfinite labels and inconsistent baseline sums
+raise errors. The residual is tied to that specific frozen checkpoint and
+includes its single-mutant prediction errors. The existing `ddG_ML_epi_term`
+column describes experimental epistasis and is not used as this training target.
+
+The training loss can then be simply:
+
+```python
+loss = torch.nn.functional.mse_loss(predicted_epsilon, epsilon_target)
+```
+
+At inference, add the predicted correction to the same checkpoint's additive
+baseline to obtain the final double-mutant ΔΔG.
+
 ## Provenance
 
 Architecture defaults and checkpoint are pinned to

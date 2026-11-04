@@ -156,6 +156,29 @@ CPU or GPU without loading a Lightning trainer or a training dataset.
 See [checkpoint download, CLI, and Python usage](docs/thermompnn_inference.md).
 This uses the single-mutant model, not the ThermoMPNN-D double-mutant predictor.
 
+To precompute the individual single-mutant predictions and their additive sum
+for every measured MegaScale-D pair:
+
+```bash
+uv run python playground/precompute_megascale_ddg.py
+```
+
+This writes the original rows plus `pred_ddg_1`, `pred_ddg_2`, `baseline_ddg`,
+`true_ddg_12`, and `epsilon_target = true_ddg_12 - baseline_ddg`
+to `data/processed/thermompnn/Megascale-D-single-predictions.csv`, with a
+provenance JSON beside it. It reuses one encoder pass per WT protein and does
+not require Rosetta or generate augmentation.
+
+To add epsilon training targets to the previously cached predictions:
+
+```bash
+uv run python playground/precompute_megascale_ddg.py \
+  --predictions-csv data/processed/thermompnn/Megascale-D-single-predictions.csv \
+  --output data/processed/thermompnn/Megascale-D-epsilon.csv
+```
+
+This conversion reuses the cached predictions without running inference.
+
 ## Train our model
 
 Our model has three independent PyTorch modules:
