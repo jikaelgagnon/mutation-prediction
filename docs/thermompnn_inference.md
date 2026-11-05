@@ -90,7 +90,7 @@ WT. Retain experimental double-mutant targets alongside the baseline values.
 From the repository root:
 
 ```bash
-uv run python playground/precompute_megascale_ddg.py
+uv run prepare-targets
 ```
 
 The defaults use `Megascale-D-full.csv`, the existing WT PDB directory, and
@@ -126,14 +126,14 @@ hashes, model, device, chain, and row/protein/unique-mutation counts.
 Input labels, including `ddG_ML`, are copied without sign changes. The published
 MegaScale-D CSVs and the predictions use kcal/mol with positive values indicating
 destabilization. Both signs therefore agree when calculating `epsilon_target`.
-Load this target directly for residual training: the existing
-`MegaScaleDatasetv2.__getitem__` negates `ddG_ML` and does not yet select the new
-target column. This export does not change the training loader.
+The project MegaScale loader selects `epsilon_target` without negation when
+configured by `configs/model_train_epsilon.yaml`; legacy `ddG_ML` training
+still negates its labels.
 
 To export a particular existing split or use other paths:
 
 ```bash
-uv run python playground/precompute_megascale_ddg.py \
+uv run prepare-targets \
   --input-csv data/raw/megascale/csv/Megascale-D-train.csv \
   --pdb-dir data/raw/megascale/pdb \
   --checkpoint checkpoints/thermompnn/ThermoMPNN-ens1.ckpt \
@@ -149,7 +149,7 @@ To reuse predictions already computed, without loading ThermoMPNN or rerunning
 inference:
 
 ```bash
-uv run python playground/precompute_megascale_ddg.py \
+uv run prepare-targets \
   --predictions-csv data/processed/thermompnn/Megascale-D-single-predictions.csv \
   --output data/processed/thermompnn/Megascale-D-epsilon.csv
 ```
@@ -179,7 +179,7 @@ The vectorized single-pass prediction follows upstream's `run_single_ssm` in
 `v2_ssm.py` and `examples/configs/single.yaml`. The wrapper adapts it to our
 existing modules, supports CPU/GPU, and loads the model without the training
 wrapper. The upstream MIT license is retained in
-`src/mutation_prediction/thermo_mpnn_d/LICENSE`.
+`src/mutation_prediction/vendor/thermompnn/LICENSE`.
 
 References: [original ThermoMPNN](https://doi.org/10.1073/pnas.2314853121) and
 [ThermoMPNN-D / updated single-mutant model](https://doi.org/10.1002/pro.70003).

@@ -19,7 +19,7 @@ from mutation_prediction.model import (
     ProteinMPNNFeatureExtractor,
 )
 from mutation_prediction.model.train import HEADS, parse_cfg, train
-from mutation_prediction.thermo_mpnn_d.thermompnn.datasets.v2_datasets import (
+from mutation_prediction.data.megascale import (
     MegaScaleDatasetv2,
     tied_featurize_mut,
 )
@@ -90,7 +90,7 @@ class EpsilonTrainingTests(unittest.TestCase):
             'platform': {'accel': 'cpu'},
         }))
         parser = patch(
-            'mutation_prediction.thermo_mpnn_d.thermompnn.datasets.v2_datasets.parse_PDB',
+            'mutation_prediction.data.megascale.parse_PDB',
             side_effect=structure,
         )
         parser.start()
@@ -122,6 +122,21 @@ class EpsilonTrainingTests(unittest.TestCase):
         self.cfg.data.mut_types = ['double', 'double-aug']
         with self.assertRaisesRegex(ValueError, 'unmodified double mutants'):
             MegaScaleDatasetv2(self.cfg, 'train')
+
+    def test_identity_substitution_in_either_site_is_excluded(self):
+        extra = self.frame.iloc[[0, 0]].copy()
+        extra['mut_type'] = ['A1A:D3G', 'A1V:D3D']
+        pd.concat([self.frame, extra]).to_csv(self.csv, index=False)
+        dataset = MegaScaleDatasetv2(self.cfg, 'train')
+        self.assertEqual(len(dataset), 2)
+
+    def test_structure_key_normalization_matches_on_load_and_lookup(self):
+        frame = self.frame.replace({'WT_name': {'train.pdb': 'train|part.pdb'}})
+        frame.to_csv(self.csv, index=False)
+        with (self.root / 'splits.pkl').open('wb') as stream:
+            pickle.dump({'train': ['train|part.pdb']}, stream)
+        dataset = MegaScaleDatasetv2(self.cfg, 'train')
+        self.assertEqual(dataset[0]['mutation'].pdb, 'train|part.pdb')
 
     def test_loss_is_mse_against_epsilon_and_singleton_batches_update_metrics(self):
         module = MutationPredictionModelPL(self.cfg, make_model(self.cfg))

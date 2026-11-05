@@ -12,10 +12,10 @@ from torch.utils.data import DataLoader
 from mutation_prediction.model.feature_extraction import ProteinMPNNFeatureExtractor
 from mutation_prediction.model.heads import PooledAttentionHead
 from mutation_prediction.model.model import MutationPredictionModel, MutationPredictionModelPL
-from mutation_prediction.thermo_mpnn_d.thermompnn.datasets.v2_datasets import (
+from mutation_prediction.data.collate import (
     tied_featurize_mut,
 )
-from mutation_prediction.thermo_mpnn_d.thermompnn.parsers import get_v2_dataset
+from mutation_prediction.data.splits import get_v2_dataset
 
 
 HEADS = {
@@ -35,9 +35,6 @@ def parse_cfg(cfg):
     cfg.data.mut_types = cfg.data.get('mut_types', ['single'])
     cfg.data.splits = cfg.data.get('splits', ['train', 'val'])
     cfg.data.side_chains = cfg.data.get('side_chains', False)
-    cfg.data.refresh_every = cfg.data.get('refresh_every', 0)
-    cfg.data.weight = cfg.data.get('weight', False)
-    cfg.data.range = cfg.data.get('range', None)
 
     # training config
     cfg.training = cfg.get('training', {})

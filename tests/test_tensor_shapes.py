@@ -16,16 +16,13 @@ from mutation_prediction.model import (
     PooledAttentionHead,
     ProteinMPNNFeatureExtractor,
 )
-from mutation_prediction.thermo_mpnn_d.proteinmpnn import model_utils, rigid_utils
-from mutation_prediction.thermo_mpnn_d.thermompnn import protein_mpnn_utils
-from mutation_prediction.thermo_mpnn_d.thermompnn.datasets.dataset_utils import Mutation
-from mutation_prediction.thermo_mpnn_d.thermompnn.datasets.v2_datasets import (
+from mutation_prediction.vendor.thermompnn.proteinmpnn import model_utils, rigid_utils
+from mutation_prediction.vendor.thermompnn.thermompnn import protein_mpnn_utils
+from mutation_prediction.data.mutations import Mutation
+from mutation_prediction.data.collate import (
     tied_featurize_mut,
 )
-from mutation_prediction.thermo_mpnn_d.thermompnn.inference.v2_inference import (
-    zero_shot_convert,
-)
-from mutation_prediction.thermo_mpnn_d.thermompnn.model import (
+from mutation_prediction.vendor.thermompnn.thermompnn.model import (
     modules,
     side_chain_model,
     v2_model,
@@ -97,18 +94,13 @@ class TensorShapeTests(unittest.TestCase):
             "mutation_prediction.model.feature_extraction",
             "mutation_prediction.model.heads",
             "mutation_prediction.model.model",
-            "mutation_prediction.thermo_mpnn_d.proteinmpnn.model_utils",
-            "mutation_prediction.thermo_mpnn_d.proteinmpnn.rigid_utils",
-            "mutation_prediction.thermo_mpnn_d.proteinmpnn.utils",
-            "mutation_prediction.thermo_mpnn_d.thermompnn.protein_mpnn_utils",
-            "mutation_prediction.thermo_mpnn_d.thermompnn.model.modules",
-            "mutation_prediction.thermo_mpnn_d.thermompnn.model.v2_model",
-            "mutation_prediction.thermo_mpnn_d.thermompnn.model.side_chain_model",
-            "mutation_prediction.thermo_mpnn_d.thermompnn.datasets.v2_datasets",
-            "mutation_prediction.thermo_mpnn_d.thermompnn.inference.v2_inference",
-            "mutation_prediction.thermo_mpnn_d.thermompnn.inference.inference_utils",
-            "mutation_prediction.thermo_mpnn_d.thermompnn.trainer.v2_trainer",
-            "mutation_prediction.thermo_mpnn_d.thermompnn.ssm_utils",
+            "mutation_prediction.vendor.thermompnn.proteinmpnn.model_utils",
+            "mutation_prediction.vendor.thermompnn.proteinmpnn.rigid_utils",
+            "mutation_prediction.vendor.thermompnn.thermompnn.protein_mpnn_utils",
+            "mutation_prediction.vendor.thermompnn.thermompnn.model.modules",
+            "mutation_prediction.vendor.thermompnn.thermompnn.model.v2_model",
+            "mutation_prediction.vendor.thermompnn.thermompnn.model.side_chain_model",
+            "mutation_prediction.data.megascale",
         )
         for name in names:
             module = importlib.import_module(name)
@@ -211,22 +203,6 @@ class TensorShapeTests(unittest.TestCase):
         for module in (model_utils, protein_mpnn_utils):
             self.check_call(module.loss_nll, sequence, log_probs, mask)
             self.check_call(module.loss_smoothed, sequence, log_probs, mask)
-        for batch in (1, 2):
-            self.check_call(
-                zero_shot_convert,
-                log_probs[:batch],
-                torch.zeros(batch, 1, dtype=torch.long),
-                torch.ones(batch, 1, dtype=torch.long),
-            )
-
-        self.check_call(
-            zero_shot_convert,
-            log_probs[:1],
-            torch.tensor([[0, 1]]),
-            torch.tensor([[2, 3]]),
-            torch.tensor([[0, 1]]),
-        )
-
     def test_encoder_variants_and_side_chain_features(self):
         coordinates = torch.randn(2, 6, 4, 3)
         sequence = torch.randint(0, 21, (2, 6))

@@ -16,12 +16,12 @@ from omegaconf import OmegaConf
 from torch import Tensor
 
 from mutation_prediction.tensor_types import ProteinRecord
-from mutation_prediction.thermo_mpnn_d.thermompnn.datasets.dataset_utils import Mutation
-from mutation_prediction.thermo_mpnn_d.thermompnn.datasets.v2_datasets import (
+from mutation_prediction.data.mutations import Mutation
+from mutation_prediction.data.collate import (
     tied_featurize_mut,
 )
-from mutation_prediction.thermo_mpnn_d.thermompnn.model.v2_model import TransferModelv2
-from mutation_prediction.thermo_mpnn_d.thermompnn.protein_mpnn_utils import (
+from mutation_prediction.vendor.thermompnn.thermompnn.model.v2_model import TransferModelv2
+from mutation_prediction.vendor.thermompnn.thermompnn.protein_mpnn_utils import (
     ProteinMPNN,
     parse_PDB,
 )

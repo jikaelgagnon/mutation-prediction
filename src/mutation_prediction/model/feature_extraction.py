@@ -6,7 +6,7 @@ import torch
 from jaxtyping import Float, Int, Real
 from torch import Tensor, nn
 
-from mutation_prediction.thermo_mpnn_d.thermompnn.model.modules import (
+from mutation_prediction.vendor.thermompnn.thermompnn.model.modules import (
     get_protein_mpnn,
 )
 

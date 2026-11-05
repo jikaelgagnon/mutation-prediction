@@ -10,7 +10,7 @@ from omegaconf import OmegaConf
 from torch import Tensor, nn
 
 from mutation_prediction.tensor_types import MutationBatch
-from mutation_prediction.thermo_mpnn_d.thermompnn.trainer.trainer_utils import (
+from mutation_prediction.model.metrics import (
     get_metrics,
 )
 

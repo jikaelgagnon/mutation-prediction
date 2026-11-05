@@ -9,7 +9,7 @@ from unittest.mock import patch
 import pandas as pd
 import torch
 
-from playground.precompute_megascale_ddg import (
+from mutation_prediction.prepare_targets import (
     add_epsilon_targets,
     main,
     parse_pair,
@@ -35,7 +35,7 @@ class PrecomputeMegaScaleTests(unittest.TestCase):
         for name in ("first", "second"):
             (self.pdb_dir / f"{name}.pdb").write_text("fixture\n")
         self.parser = patch(
-            "playground.precompute_megascale_ddg.parse_PDB",
+            "mutation_prediction.prepare_targets.parse_PDB",
             side_effect=lambda path, **kwargs: [{"name": Path(path).stem, "seq": "ACDE"}],
         )
         self.parser.start()
@@ -149,7 +149,7 @@ class PrecomputeMegaScaleTests(unittest.TestCase):
         }))
         with (
             patch("sys.argv", ["precompute", "--predictions-csv", str(predictions), "--output", str(output)]),
-            patch("playground.precompute_megascale_ddg.ThermoMPNNPredictor") as predictor,
+            patch("mutation_prediction.prepare_targets.ThermoMPNNPredictor") as predictor,
             patch("builtins.print"),
         ):
             main()
