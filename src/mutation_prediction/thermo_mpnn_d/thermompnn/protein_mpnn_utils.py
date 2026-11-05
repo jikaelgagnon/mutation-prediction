@@ -5,19 +5,19 @@ the structural encoder and exposes its residue representations to the
 ThermoMPNN-D transfer head in ``model.v2_model``.
 """
 
-from __future__ import annotations, print_function
+from __future__ import annotations
 
 import itertools
 import json
 import time
-from typing import Any, Iterator
+from collections.abc import Iterator
+from typing import Any
 
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from jaxtyping import Float, Int, Real, Shaped
-from torch import Tensor
+from torch import Tensor, nn
 
 from mutation_prediction.tensor_types import (
     Coordinates,
@@ -36,7 +36,7 @@ def _scores(
     S: Int[Tensor, "batch length"],
     log_probs: Float[Tensor, "batch length vocab"],
     mask: Real[Tensor, "batch length"],
-) -> Float[Tensor, "batch"]:
+) -> Float[Tensor, batch]:
     """ Negative log probabilities """
     criterion = torch.nn.NLLLoss(reduction='none')
     loss = criterion(
@@ -47,7 +47,7 @@ def _scores(
     return scores
 
 
-def _S_to_seq(S: Int[Tensor, "length"], mask: Real[Tensor, "length"]) -> str:
+def _S_to_seq(S: Int[Tensor, length], mask: Real[Tensor, length]) -> str:
     alphabet = 'ACDEFGHIKLMNPQRSTVWYX'
     seq = ''.join([alphabet[c] for c, m in zip(S.tolist(), mask.tolist()) if m > 0])
     return seq
@@ -99,7 +99,7 @@ def parse_PDB_biounits(
         return [[aa_1_N.get(a, states - 1) for a in y] for y in x]
 
     def N_to_AA(
-        x: Int[np.ndarray, "length"]
+        x: Int[np.ndarray, length]
         | Int[np.ndarray, "batch length"]
         | list[int]
         | list[list[int]],
@@ -129,10 +129,8 @@ def parse_PDB_biounits(
                     resa, resn = resn[-1], int(resn[:-1]) - 1
                 else:
                     resa, resn = "", int(resn) - 1
-                if resn < min_resn:
-                    min_resn = resn
-                if resn > max_resn:
-                    max_resn = resn
+                min_resn = min(min_resn, resn)
+                max_resn = max(max_resn, resn)
                 if resn not in xyz:
                     xyz[resn] = {}
                 if resa not in xyz[resn]:
@@ -262,7 +260,7 @@ def alt_parse_PDB_biounits(
         return [[aa_1_N.get(a, states - 1) for a in y] for y in x]
 
     def N_to_AA(
-        x: Int[np.ndarray, "length"]
+        x: Int[np.ndarray, length]
         | Int[np.ndarray, "batch length"]
         | list[int]
         | list[list[int]],
@@ -295,10 +293,8 @@ def alt_parse_PDB_biounits(
                     resa, resn = resn[-1], int(resn[:-1]) - 1
                 else:
                     resa, resn = "", int(resn) - 1
-                if resn < min_resn:
-                    min_resn = resn
-                if resn > max_resn:
-                    max_resn = resn
+                min_resn = min(min_resn, resn)
+                max_resn = max(max_resn, resn)
                 if resn not in xyz:
                     xyz[resn] = {}
                 if resa not in xyz[resn]:
@@ -716,7 +712,7 @@ def loss_smoothed(
     return loss, loss_av
 
 
-class StructureDataset():
+class StructureDataset:
     def __init__(self, jsonl_file, verbose=True, truncate=None, max_length=100,
                  alphabet='ACDEFGHIKLMNPQRSTVWYX-'):
         alphabet_set = set([a for a in alphabet])
@@ -760,7 +756,7 @@ class StructureDataset():
 
                 if verbose and (i + 1) % 1000 == 0:
                     elapsed = time.time() - start
-                    print('{} entries ({} loaded) in {:.1f} s'.format(len(self.data), i + 1, elapsed))
+                    print(f'{len(self.data)} entries ({i + 1} loaded) in {elapsed:.1f} s')
 
             print('discarded', discard_count)
 
@@ -771,7 +767,7 @@ class StructureDataset():
         return self.data[idx]
 
 
-class StructureDatasetPDB():
+class StructureDatasetPDB:
     def __init__(self, pdb_dict_list, verbose=True, truncate=None, max_length=100,
                  alphabet='ACDEFGHIKLMNPQRSTVWYX-'):
         alphabet_set = set([a for a in alphabet])
@@ -813,7 +809,7 @@ class StructureDatasetPDB():
         return self.data[idx]
 
 
-class StructureLoader():
+class StructureLoader:
     def __init__(self, dataset, batch_size=100, shuffle=True,
                  collate_fn=lambda x: x, drop_last=False):
         self.dataset = dataset
@@ -894,7 +890,7 @@ def cat_neighbors_nodes(
 
 class EncLayer(nn.Module):
     def __init__(self, num_hidden, num_in, dropout=0.1, num_heads=None, scale=30):
-        super(EncLayer, self).__init__()
+        super().__init__()
         self.num_hidden = num_hidden
         self.num_in = num_in
         self.scale = scale
@@ -951,7 +947,7 @@ class EncLayer(nn.Module):
 
 class DecLayer(nn.Module):
     def __init__(self, num_hidden, num_in, dropout=0.1, num_heads=None, scale=30):
-        super(DecLayer, self).__init__()
+        super().__init__()
         self.num_hidden = num_hidden
         self.num_in = num_in
         self.scale = scale
@@ -1004,7 +1000,7 @@ class DecLayer(nn.Module):
 
 class PositionWiseFeedForward(nn.Module):
     def __init__(self, num_hidden, num_ff):
-        super(PositionWiseFeedForward, self).__init__()
+        super().__init__()
         self.W_in = nn.Linear(num_hidden, num_ff, bias=True)
         self.W_out = nn.Linear(num_ff, num_hidden, bias=True)
         self.act = torch.nn.GELU()
@@ -1019,7 +1015,7 @@ class PositionWiseFeedForward(nn.Module):
 
 class PositionalEncodings(nn.Module):
     def __init__(self, num_embeddings, max_relative_feature=32):
-        super(PositionalEncodings, self).__init__()
+        super().__init__()
         self.num_embeddings = num_embeddings
         self.max_relative_feature = max_relative_feature
         self.linear = nn.Linear(2 * max_relative_feature + 1 + 1, num_embeddings)
@@ -1040,7 +1036,7 @@ class CA_ProteinFeatures(nn.Module):
     def __init__(self, edge_features, node_features, num_positional_embeddings=16,
                  num_rbf=16, top_k=30, augment_eps=0., num_chain_embeddings=16):
         """ Extract protein features """
-        super(CA_ProteinFeatures, self).__init__()
+        super().__init__()
         self.edge_features = edge_features
         self.node_features = node_features
         self.top_k = top_k
@@ -1247,7 +1243,7 @@ class ProteinFeatures(nn.Module):
     def __init__(self, edge_features, node_features, num_positional_embeddings=16,
                  num_rbf=16, top_k=30, augment_eps=0., num_chain_embeddings=16):
         """ Extract protein features """
-        super(ProteinFeatures, self).__init__()
+        super().__init__()
         self.edge_features = edge_features
         self.node_features = node_features
         self.top_k = top_k
@@ -1371,7 +1367,7 @@ class ProteinMPNN(nn.Module):
                  hidden_dim, num_encoder_layers=3, num_decoder_layers=3,
                  vocab=21, k_neighbors=64, augment_eps=0.05, dropout=0.1, 
                  use_ipmp=False, n_points=8):
-        super(ProteinMPNN, self).__init__()
+        super().__init__()
 
         # Hyperparameters
         self.node_features = node_features
@@ -1522,8 +1518,8 @@ class ProteinMPNN(nn.Module):
         residue_idx: Int[Tensor, "batch length"],
         mask: Real[Tensor, "batch length"] | None = None,
         temperature: float = 1.0,
-        omit_AAs_np: Real[np.ndarray, "21"] | None = None,
-        bias_AAs_np: Float[np.ndarray, "21"] | None = None,
+        omit_AAs_np: Real[np.ndarray, 21] | None = None,
+        bias_AAs_np: Float[np.ndarray, 21] | None = None,
         chain_M_pos: Real[Tensor, "batch length"] | None = None,
         omit_AA_mask: Real[Tensor, "batch length 21"] | None = None,
         pssm_coef: Float[Tensor, "batch length"] | None = None,
@@ -1646,8 +1642,8 @@ class ProteinMPNN(nn.Module):
         residue_idx: Int[Tensor, "batch length"],
         mask: Real[Tensor, "batch length"] | None = None,
         temperature: float = 1.0,
-        omit_AAs_np: Real[np.ndarray, "21"] | None = None,
-        bias_AAs_np: Float[np.ndarray, "21"] | None = None,
+        omit_AAs_np: Real[np.ndarray, 21] | None = None,
+        bias_AAs_np: Float[np.ndarray, 21] | None = None,
         chain_M_pos: Real[Tensor, "batch length"] | None = None,
         omit_AA_mask: Real[Tensor, "batch length 21"] | None = None,
         pssm_coef: Float[Tensor, "batch length"] | None = None,
@@ -1657,7 +1653,7 @@ class ProteinMPNN(nn.Module):
         pssm_log_odds_mask: Real[Tensor, "batch length 21"] | None = None,
         pssm_bias_flag: bool | None = None,
         tied_pos: list[list[int]] | None = None,
-        tied_beta: Float[Tensor, "length"] | None = None,
+        tied_beta: Float[Tensor, length] | None = None,
         bias_by_res: Float[Tensor, "batch length 21"] | None = None,
     ) -> SamplingOutput:
         device = X.device

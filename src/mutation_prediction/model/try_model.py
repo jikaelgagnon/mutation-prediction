@@ -17,10 +17,8 @@ def _():
     from pathlib import Path
 
     import marimo as mo
-    import pandas as pd
     import pytorch_lightning as pl
     from omegaconf import OmegaConf
-    from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
     from torch.utils.data import DataLoader
 
     repo_root = Path.cwd()
@@ -76,7 +74,6 @@ def _(OmegaConf, Path, repo_root):
 @app.cell
 def _(cfg):
     dict(cfg)
-    return
 
 
 @app.cell
@@ -105,7 +102,6 @@ def _(Path, cfg, repo_root):
     default_checkpoint = (
         "v_48_020.pt" if "v_48_020.pt" in checkpoint_names else checkpoint_names[0]
     )
-    return
 
 
 @app.cell
@@ -124,25 +120,21 @@ def _(mo, train_dataset, val_dataset):
     {len(val_dataset):,} validation. The data and structure files are read from
     `data/raw/megascale/`.
     """)
-    return
 
 
 @app.cell
 def _(train_dataset):
     train_dataset.df[["WT_name", "mut_type", "ddG_ML", "aa_seq"]].head(12)
-    return
 
 
 @app.cell
 def _(active_cfg):
     active_cfg.training.batch_size = 1
-    return
 
 
 @app.cell
 def _(active_cfg):
     active_cfg.training.batch_size
-    return
 
 
 @app.cell
@@ -188,7 +180,6 @@ def _(mo):
     mo.md(r"""
     We can unpack the tuple:
     """)
-    return
 
 
 @app.cell
@@ -254,7 +245,6 @@ def _(
 @app.cell
 def _(X):
     X.shape
-    return
 
 
 @app.cell
@@ -272,14 +262,20 @@ def _(device, model_inputs):
 
 @app.cell
 def _():
-    from mutation_prediction.model import PooledAttentionModel
+    from mutation_prediction.model import (
+        MutationPredictionModel,
+        PooledAttentionHead,
+        ProteinMPNNFeatureExtractor,
+    )
 
-    return (PooledAttentionModel,)
+    return MutationPredictionModel, PooledAttentionHead, ProteinMPNNFeatureExtractor
 
 
 @app.cell
-def _(PooledAttentionModel, cfg, device):
-    model = PooledAttentionModel(cfg).to(device)
+def _(MutationPredictionModel, PooledAttentionHead, ProteinMPNNFeatureExtractor, cfg, device):
+    feature_extractor = ProteinMPNNFeatureExtractor(cfg)
+    prediction_head = PooledAttentionHead(input_dim=feature_extractor.output_dim)
+    model = MutationPredictionModel(feature_extractor, prediction_head).to(device)
     model
     return (model,)
 
@@ -287,7 +283,6 @@ def _(PooledAttentionModel, cfg, device):
 @app.cell
 def _(inputs, model):
     model(*inputs)
-    return
 
 
 if __name__ == "__main__":

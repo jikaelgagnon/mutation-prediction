@@ -183,13 +183,13 @@ This conversion reuses the cached predictions without running inference.
 
 Our model has three independent PyTorch modules:
 
-- [`ProteinMPNNFeatureExtractor`](src/mutation_prediction/model/features.py)
+- [`ProteinMPNNFeatureExtractor`](src/mutation_prediction/model/feature_extraction.py)
   returns `final_embed` with shape `[batch, mutations, features]`. Each mutation
   gets the last K ProteinMPNN decoder states concatenated with its WT amino-acid
   embedding, optionally minus the mutant embedding. `output_dim` gives the
   feature width (384 with K = 2 and the pretrained encoder).
 - [`PooledAttentionHead`](src/mutation_prediction/model/heads.py) consumes that
-  tensor, pools across mutations, and predicts one ΔΔG per example, `[batch, 1]`.
+  tensor, pools across mutations, and predicts one scalar per example, `[batch, 1]`.
 - [`MutationPredictionModel`](src/mutation_prediction/model/model.py) connects
   any compatible feature extractor and prediction head.
 
@@ -197,14 +197,14 @@ Our model has three independent PyTorch modules:
 from mutation_prediction.model import (
     MutationPredictionModel,
     PooledAttentionHead,
-    PooledAttentionModelPL,
+    MutationPredictionModelPL,
     ProteinMPNNFeatureExtractor,
 )
 
 features = ProteinMPNNFeatureExtractor(cfg)
 head = PooledAttentionHead(features.output_dim)
 model = MutationPredictionModel(features, head)
-training_module = PooledAttentionModelPL(cfg, model=model)
+training_module = MutationPredictionModelPL(cfg, model=model)
 ```
 
 Replace `head` with any `nn.Module` that maps `[batch, mutations, features]` to
@@ -215,9 +215,14 @@ injected encoders control their own parameter freezing. Unfrozen extractor
 parameters use `training.mpnn_learn_rate` when set; head parameters use
 `training.learn_rate`.
 
-`PooledAttentionModel(cfg)` remains the default combination of these modules,
-with the same input signature. `PooledAttentionModelPL(cfg)` uses that default
-and supplies the training loss, metrics, optimizer, and learning-rate scheduler.
+`MutationPredictionModelPL(cfg, model)` supplies the training loss, metrics,
+optimizer, and learning-rate scheduler for the composed model. The training
+script selects a head constructor from its `HEADS` dictionary using `model.head`
+(default: `pooled_attention`) and combines it with `ProteinMPNNFeatureExtractor`.
+Add another compatible head constructor to that dictionary to select it by name.
+When using `MutationPredictionModelPL.load_from_checkpoint`, supply the composed
+model explicitly with `model=model`; the checkpoint saves its weights and cfg,
+but does not reconstruct custom components.
 Parameter paths now start with `feature_extractor.prot_mpnn` and
 `prediction_head`; checkpoints from the earlier layout require key remapping.
 
@@ -233,7 +238,7 @@ uv run python -m mutation_prediction.model.train \
   configs/model_train_epistatic.yaml
 ```
 
-This trains `PooledAttentionModel` on the MegaScale double-mutant training and
+This trains the configured pooled-attention head on the MegaScale double-mutant training and
 validation splits. By default, the pretrained ProteinMPNN encoder is frozen and
 the pooled-attention prediction layers are trained for 100 epochs with a batch
 size of 128 and a learning rate of `0.00001`.
@@ -267,7 +272,7 @@ With `project` omitted, W&B logging is disabled.
 
 ### Train epsilon predictions
 
-To train `PooledAttentionModelPL` to output epsilon hat directly, run:
+To train `MutationPredictionModelPL` to output epsilon hat directly, run:
 
 ```bash
 uv run python -m mutation_prediction.model.train \

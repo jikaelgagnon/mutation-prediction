@@ -6,7 +6,6 @@ ThermoMPNN-D's mutation-effect model.
 
 import os
 
-
 d = 'ProteinMPNN_000_0/'
 f = 'log.txt'
 

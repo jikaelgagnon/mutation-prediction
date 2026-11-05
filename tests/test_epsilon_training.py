@@ -4,7 +4,7 @@ import pickle
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import numpy as np
 import pandas as pd
@@ -12,8 +12,13 @@ import torch
 from omegaconf import OmegaConf
 from torch import nn
 
-from mutation_prediction.model.model import PooledAttentionModelPL
-from mutation_prediction.model.train import parse_cfg, train
+from mutation_prediction.model import (
+    MutationPredictionModel,
+    MutationPredictionModelPL,
+    PooledAttentionHead,
+    ProteinMPNNFeatureExtractor,
+)
+from mutation_prediction.model.train import HEADS, parse_cfg, train
 from mutation_prediction.thermo_mpnn_d.thermompnn.datasets.v2_datasets import (
     MegaScaleDatasetv2,
     tied_featurize_mut,
@@ -29,6 +34,11 @@ class TinyEncoder(nn.Module):
     def forward(self, X, S, mask, chain_M, residue_idx, chain_encoding_all):
         embedding = self.W_s(S)
         return [embedding, embedding], embedding, None, None
+
+
+def make_model(cfg):
+    features = ProteinMPNNFeatureExtractor(cfg, protein_encoder=TinyEncoder())
+    return MutationPredictionModel(features, PooledAttentionHead(features.output_dim))
 
 
 def structure(path, **kwargs):
@@ -114,7 +124,7 @@ class EpsilonTrainingTests(unittest.TestCase):
             MegaScaleDatasetv2(self.cfg, 'train')
 
     def test_loss_is_mse_against_epsilon_and_singleton_batches_update_metrics(self):
-        module = PooledAttentionModelPL(self.cfg, protein_encoder=TinyEncoder())
+        module = MutationPredictionModelPL(self.cfg, make_model(self.cfg))
         dataset = MegaScaleDatasetv2(self.cfg, 'train')
         for size in (1, 2):
             batch = tied_featurize_mut([dataset[i] for i in range(size)])
@@ -130,9 +140,23 @@ class EpsilonTrainingTests(unittest.TestCase):
             self.assertIsNotNone(module.model.prediction_head.final_layer.weight.grad)
         self.assertEqual(module.configure_optimizers()['monitor'], 'val_epsilon_mse')
 
+    def test_unknown_head_fails_before_loading_data(self):
+        self.cfg.model.head = 'unknown'
+        with patch('mutation_prediction.model.train.get_v2_dataset') as load_data:
+            with self.assertRaisesRegex(ValueError, 'Unknown model.head.*Available heads'):
+                train(self.cfg)
+        load_data.assert_not_called()
+
     def test_training_saves_checkpoint_with_correct_validation_mse(self):
-        with patch('mutation_prediction.model.features.get_protein_mpnn', side_effect=lambda cfg: TinyEncoder()):
+        self.assertEqual(self.cfg.model.head, 'pooled_attention')
+        self.cfg.model.head = 'registered_attention'
+        head_constructor = Mock(wraps=PooledAttentionHead)
+        with patch.dict(HEADS, registered_attention=head_constructor), patch(
+            'mutation_prediction.model.feature_extraction.get_protein_mpnn',
+            side_effect=lambda cfg: TinyEncoder(),
+        ):
             trainer = train(self.cfg)
+        head_constructor.assert_called_once_with(input_dim=24)
         self.assertEqual(trainer.global_step, 1)
         self.assertTrue(Path(trainer.checkpoint_callback.best_model_path).is_file())
         self.assertTrue((self.root / 'checkpoints/last.ckpt').is_file())
@@ -147,15 +171,18 @@ class EpsilonTrainingTests(unittest.TestCase):
         checkpoint_path = trainer.checkpoint_callback.best_model_path
         checkpoint = torch.load(checkpoint_path, weights_only=True)
         self.assertEqual(checkpoint['hyper_parameters']['cfg']['data']['target_column'], 'epsilon_target')
-        restored = PooledAttentionModelPL.load_from_checkpoint(
-            checkpoint_path, protein_encoder=TinyEncoder(), weights_only=True,
+        restored = MutationPredictionModelPL.load_from_checkpoint(
+            checkpoint_path, model=make_model(self.cfg), weights_only=True,
         )
         for name, value in trainer.lightning_module.state_dict().items():
             torch.testing.assert_close(restored.state_dict()[name], value)
 
         self.cfg.training.ckpt = str(self.root / 'checkpoints/last.ckpt')
         self.cfg.training.epochs = 2
-        with patch('mutation_prediction.model.features.get_protein_mpnn', side_effect=lambda cfg: TinyEncoder()):
+        with patch.dict(HEADS, registered_attention=head_constructor), patch(
+            'mutation_prediction.model.feature_extraction.get_protein_mpnn',
+            side_effect=lambda cfg: TinyEncoder(),
+        ):
             resumed = train(self.cfg)
         self.assertEqual(resumed.global_step, 2)
 

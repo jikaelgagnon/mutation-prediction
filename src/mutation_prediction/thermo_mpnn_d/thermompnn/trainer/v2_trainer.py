@@ -165,7 +165,7 @@ class TransferModelPLv2(pl.LightningModule):
             return {
                 'optimizer': opt,
                 'lr_scheduler': lr_sched,
-                'monitor': f'val_ddG_mse'
+                'monitor': 'val_ddG_mse'
             }
         else:
             return opt
@@ -303,7 +303,7 @@ class TransferModelPLv2Siamese(pl.LightningModule):
             return {
                 'optimizer': opt,
                 'lr_scheduler': lr_sched,
-                'monitor': f'val_ddG_mse'
+                'monitor': 'val_ddG_mse'
             }
         else:
             return opt

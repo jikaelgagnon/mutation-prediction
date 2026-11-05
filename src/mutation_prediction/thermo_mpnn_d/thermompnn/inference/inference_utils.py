@@ -6,19 +6,10 @@ a residue-neighborhood count used to describe mutation-site context.
 
 from __future__ import annotations
 
-import argparse
-
-import omegaconf as OmegaConf
-import pandas as pd
 import torch
 from jaxtyping import Int
-from torch import Tensor, nn
+from torch import Tensor
 from torchmetrics import MeanSquaredError, PearsonCorrCoef, R2Score, SpearmanCorrCoef
-
-from mutation_prediction.thermo_mpnn_d.thermompnn.model.modules import get_protein_mpnn
-from mutation_prediction.thermo_mpnn_d.thermompnn.protein_mpnn_utils import (
-    tied_featurize,
-)
 
 ALPHABET = 'ACDEFGHIKLMNPQRSTVWYX'
 
@@ -41,7 +32,7 @@ def compute_centrality(
     surface_threshold: int = 15,
     backup_atom: str = "C",
     chain: str = "A",
-) -> Int[Tensor, "length"]:
+) -> Int[Tensor, length]:
     """Expects ProteinMPNN feature dict and returns torch tensor of num_neighbors integers."""
     coords = xyz[basis_atom + f'_chain_{chain}']
     coords = torch.tensor(coords)

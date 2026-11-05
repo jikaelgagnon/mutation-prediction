@@ -5,27 +5,28 @@ ThermoMPNN-D's encoder, rather than the mutation-stability transfer head.
 """
 
 import argparse
-import os.path
+
 
 def main(args):
-    import json, time, os, sys, glob
-    import shutil
-    import warnings
+    import os
+    import os.path
+    import queue
+    import time
+    from concurrent.futures import ProcessPoolExecutor
+
     import numpy as np
     import torch
-    from torch import optim
-    from torch.utils.data import DataLoader
-    import queue
-    import copy
-    import torch.nn as nn
-    import torch.nn.functional as F
-    import random
-    import os.path
-    import subprocess
-    from concurrent.futures import ProcessPoolExecutor    
-    from utils import worker_init_fn, get_pdbs, loader_pdb, build_training_clusters, PDB_dataset, StructureDataset, StructureLoader
-    from model_utils import featurize, loss_smoothed, loss_nll, get_std_opt, ProteinMPNN
+    from model_utils import ProteinMPNN, featurize, get_std_opt, loss_nll, loss_smoothed
     from tqdm import tqdm
+    from utils import (
+        PDB_dataset,
+        StructureDataset,
+        StructureLoader,
+        build_training_clusters,
+        get_pdbs,
+        loader_pdb,
+        worker_init_fn,
+    )
 
     scaler = torch.cuda.amp.GradScaler()
      
@@ -242,7 +243,7 @@ def main(args):
                     f.write(f'epoch: {e+1}, step: {total_step}, time: {dt}, train: {train_perplexity_}, train_acc: {train_accuracy_}\n')
                 print(f'epoch: {e+1}, step: {total_step}, time: {dt}, train: {train_perplexity_}, train_acc: {train_accuracy_}')
                 
-            checkpoint_filename_last = base_folder+'model_weights/epoch_last.pt'.format(e+1, total_step)
+            checkpoint_filename_last = base_folder+'model_weights/epoch_last.pt'
             torch.save({
                         'epoch': e+1,
                         'step': total_step,
@@ -253,7 +254,7 @@ def main(args):
                         }, checkpoint_filename_last)
 
             if (e+1) % args.save_model_every_n_epochs == 0:
-                checkpoint_filename = base_folder+'model_weights/epoch{}_step{}.pt'.format(e+1, total_step)
+                checkpoint_filename = base_folder+f'model_weights/epoch{e+1}_step{total_step}.pt'
                 torch.save({
                         'epoch': e+1,
                         'step': total_step,

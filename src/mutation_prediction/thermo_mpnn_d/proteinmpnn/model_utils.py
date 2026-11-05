@@ -5,28 +5,17 @@ residue embeddings for ThermoMPNN-D. The mutation-specific transfer head is in
 ``thermompnn/model/v2_model.py``.
 """
 
-from __future__ import annotations, print_function
+from __future__ import annotations
 
-import copy
-import glob
-import itertools
-import json
-import os
 import random
-import shutil
-import sys
-import time
 
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils
 import torch.utils.checkpoint
 from jaxtyping import Float, Int, Real, Shaped
-from torch import Tensor, optim
-from torch.utils.data import DataLoader
-from torch.utils.data.dataset import Subset, random_split
+from torch import Tensor, nn
 
 from mutation_prediction.tensor_types import (
     ProteinBatch,
@@ -283,7 +272,7 @@ def gather_mask(
 
 class EncLayer(nn.Module):
     def __init__(self, num_hidden, num_in, dropout=0.1, num_heads=None, scale=30):
-        super(EncLayer, self).__init__()
+        super().__init__()
         self.num_hidden = num_hidden
         self.num_in = num_in
         self.scale = scale
@@ -457,7 +446,7 @@ class IPMPEncoder(nn.Module):
 
 class DecLayer(nn.Module):
     def __init__(self, num_hidden, num_in, dropout=0.1, num_heads=None, scale=30):
-        super(DecLayer, self).__init__()
+        super().__init__()
         self.num_hidden = num_hidden
         self.num_in = num_in
         self.scale = scale
@@ -605,7 +594,7 @@ class IPMPDecoder(nn.Module):
 
 class PositionWiseFeedForward(nn.Module):
     def __init__(self, num_hidden, num_ff):
-        super(PositionWiseFeedForward, self).__init__()
+        super().__init__()
         self.W_in = nn.Linear(num_hidden, num_ff, bias=True)
         self.W_out = nn.Linear(num_ff, num_hidden, bias=True)
         self.act = torch.nn.GELU()
@@ -618,7 +607,7 @@ class PositionWiseFeedForward(nn.Module):
 
 class PositionalEncodings(nn.Module):
     def __init__(self, num_embeddings, max_relative_feature=32):
-        super(PositionalEncodings, self).__init__()
+        super().__init__()
         self.num_embeddings = num_embeddings
         self.max_relative_feature = max_relative_feature
         self.linear = nn.Linear(2*max_relative_feature+1+1, num_embeddings)
@@ -638,7 +627,7 @@ class ProteinFeatures(nn.Module):
     def __init__(self, edge_features, node_features, num_positional_embeddings=16,
         num_rbf=16, top_k=30, augment_eps=0., num_chain_embeddings=16, side_chains=False):
         """ Extract protein features """
-        super(ProteinFeatures, self).__init__()
+        super().__init__()
         self.edge_features = edge_features
         self.node_features = node_features
         self.top_k = top_k
@@ -799,7 +788,7 @@ class ProteinMPNN(nn.Module):
         hidden_dim=128, num_encoder_layers=3, num_decoder_layers=3,
         vocab=21, k_neighbors=32, augment_eps=0.1, dropout=0.1,
         use_ipmp=False, n_points=8, side_chains=False, single_res_rec=False):
-        super(ProteinMPNN, self).__init__()
+        super().__init__()
 
         # Hyperparameters
         self.node_features = node_features

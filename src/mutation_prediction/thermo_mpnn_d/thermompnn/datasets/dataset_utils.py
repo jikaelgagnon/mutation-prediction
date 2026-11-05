@@ -8,8 +8,6 @@ structure sequence before model featurization.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
-
 
 # The 20 standard amino acids, plus "-" to represent a gap in an alignment.
 ALPHABET = 'ACDEFGHIKLMNPQRSTVWY-'
@@ -27,8 +25,8 @@ class Mutation:
     wildtype: list[str] # original AA
     mutation: list[str] # mutated AA
     # Optional measured stability change and the associated structure name.
-    ddG: Optional[float] = None
-    pdb: Optional[str] = ''
+    ddG: float | None = None
+    pdb: str | None = ''
 
 
 """

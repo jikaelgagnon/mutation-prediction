@@ -5,14 +5,13 @@ the ThermoMPNN-D mutation-site prediction heads that consume its embeddings
 are in ``v2_model.py``.
 """
 
-from __future__ import annotations, print_function
+from __future__ import annotations
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils
 from jaxtyping import Float, Int, Real
-from torch import Tensor
+from torch import Tensor, nn
 
 from mutation_prediction.thermo_mpnn_d.proteinmpnn.model_utils import (
     DecLayer,
@@ -31,7 +30,7 @@ class ProteinMPNN(nn.Module):
         vocab=21, k_neighbors=32, augment_eps=0.1, dropout=0.1,
         use_ipmp=False, n_points=8, side_chains=False, single_res_rec=False, 
         decoding_order='id', nfl=1):
-        super(ProteinMPNN, self).__init__()
+        super().__init__()
 
         # Hyperparameters
         self.node_features = node_features

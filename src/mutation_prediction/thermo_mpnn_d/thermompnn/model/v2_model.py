@@ -8,17 +8,13 @@ distance, edge, attention, and side-chain features are wired here.
 
 from __future__ import annotations
 
-from itertools import permutations
-
 import numpy as np
 import torch
-import torch.nn as nn
 from jaxtyping import Float, Int, Real, Shaped
-from torch import Tensor
+from torch import Tensor, nn
 
 from mutation_prediction.thermo_mpnn_d.thermompnn.model.modules import (
     LightAttention,
-    MPNNLayer,
     SideChainModule,
     get_protein_mpnn,
 )
@@ -28,10 +24,10 @@ from mutation_prediction.thermo_mpnn_d.thermompnn.model.side_chain_model import 
 
 
 def batched_index_select(
-    input: Shaped[Tensor, "batch *features"],
+    input: Shaped[Tensor, batch *features],
     dim: int,
     index: Int[Tensor, "batch selected"],
-) -> Shaped[Tensor, "batch *selected_features"]:
+) -> Shaped[Tensor, batch *selected_features]:
     """Replace axis dim with selected indices; preserve every other input axis."""
     for ii in range(1, len(input.shape)):
         if ii != dim:

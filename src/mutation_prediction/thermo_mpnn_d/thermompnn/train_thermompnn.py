@@ -5,17 +5,22 @@ transfer model, then trains against measured stability changes and selects
 checkpoints by validation Spearman correlation.
 """
 
-import os
 import argparse
-from torch.utils.data import DataLoader
+import os
 
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import ModelCheckpoint
 from omegaconf import OmegaConf
+from pytorch_lightning.callbacks import ModelCheckpoint
+from torch.utils.data import DataLoader
 
+from mutation_prediction.thermo_mpnn_d.thermompnn.datasets.v2_datasets import (
+    tied_featurize_mut,
+)
 from mutation_prediction.thermo_mpnn_d.thermompnn.parsers import get_v2_dataset
-from mutation_prediction.thermo_mpnn_d.thermompnn.trainer.v2_trainer import TransferModelPLv2, TransferModelPLv2Siamese
-from mutation_prediction.thermo_mpnn_d.thermompnn.datasets.v2_datasets import tied_featurize_mut
+from mutation_prediction.thermo_mpnn_d.thermompnn.trainer.v2_trainer import (
+    TransferModelPLv2,
+    TransferModelPLv2Siamese,
+)
 
 
 def parse_cfg(cfg):
@@ -102,7 +107,7 @@ def train(cfg):
     
     # additional params, logging, checkpoints for training
     filename = cfg.name + '_{epoch:02d}_{val_ddG_spearman:.02}'
-    monitor = f'val_ddG_spearman'
+    monitor = 'val_ddG_spearman'
     
     checkpath = os.path.abspath(cfg.training.get('output_dir', 'checkpoints'))
     os.makedirs(checkpath, exist_ok=True)

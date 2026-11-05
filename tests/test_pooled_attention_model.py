@@ -9,8 +9,7 @@ from torch import nn
 from mutation_prediction.model import (
     MutationPredictionModel,
     PooledAttentionHead,
-    PooledAttentionModel,
-    PooledAttentionModelPL,
+    MutationPredictionModelPL,
     ProteinMPNNFeatureExtractor,
 )
 
@@ -66,7 +65,7 @@ def make_inputs(batch_size=2, mutations=2):
     )
 
 
-class PooledAttentionModelTests(unittest.TestCase):
+class MutationPredictionModelTests(unittest.TestCase):
     def test_features_preserve_layer_order_positions_and_optional_subtraction(self):
         for batch_size in (1, 2):
             for mutations in (1, 3):
@@ -128,8 +127,11 @@ class PooledAttentionModelTests(unittest.TestCase):
             head.attn_pool.bias.zero_()
         torch.testing.assert_close(head(features), head.final_layer(features.mean(1)))
 
-    def test_default_model_composes_the_extractor_and_attention_head(self):
-        model = PooledAttentionModel(make_config(), protein_encoder=StubProteinEncoder())
+    def test_model_composes_the_extractor_and_attention_head(self):
+        features = ProteinMPNNFeatureExtractor(
+            make_config(), protein_encoder=StubProteinEncoder()
+        )
+        model = MutationPredictionModel(features, PooledAttentionHead(features.output_dim))
         inputs = make_inputs()
         self.assertIsInstance(model.feature_extractor, ProteinMPNNFeatureExtractor)
         self.assertIsInstance(model.prediction_head, PooledAttentionHead)
@@ -150,7 +152,7 @@ class PooledAttentionModelTests(unittest.TestCase):
                     nn.Linear(5, 1),
                 )
                 model = MutationPredictionModel(features, head)
-                module = PooledAttentionModelPL(cfg, model=model)
+                module = MutationPredictionModelPL(cfg, model=model)
                 inputs = make_inputs()
                 predictions = module(*inputs)
                 self.assertEqual(predictions.shape, (2, 1))
@@ -189,7 +191,7 @@ class PooledAttentionModelTests(unittest.TestCase):
         head = nn.Sequential(nn.Flatten(start_dim=1), nn.Linear(6, 1))
         model = MutationPredictionModel(features, head)
         # Custom extractors control freezing through requires_grad themselves.
-        module = PooledAttentionModelPL(make_config(freeze_weights=True), model=model)
+        module = MutationPredictionModelPL(make_config(freeze_weights=True), model=model)
         inputs = make_inputs()
         prediction = module(*inputs)
         torch.testing.assert_close(prediction, head(features(*inputs[:9])))

@@ -7,21 +7,16 @@ The complete single- and multi-mutant heads are in ``v2_model.py``.
 
 from __future__ import annotations
 
-import math
 import os
 
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from jaxtyping import Float, Int, Real, Shaped
-from torch import Tensor
+from torch import Tensor, nn
 
 from mutation_prediction.thermo_mpnn_d.thermompnn.protein_mpnn_utils import (
-    DecLayer,
-    PositionWiseFeedForward,
     ProteinMPNN,
-    cat_neighbors_nodes,
     gather_edges,
     gather_nodes,
 )
@@ -68,7 +63,7 @@ def get_protein_mpnn(cfg, version='v_48_020.pt'):
 
 class SideChainPositionalEncodings(nn.Module):
     def __init__(self, num_embeddings, period_range=[2,1000], max_relative_feature=32, af2_relpos=False):
-        super(SideChainPositionalEncodings, self).__init__()
+        super().__init__()
         self.num_embeddings = num_embeddings
         self.period_range = period_range
         self.max_relative_feature = max_relative_feature 
@@ -131,7 +126,7 @@ class SideChainProteinFeatures(nn.Module):
     def __init__(self, edge_features, node_features, num_positional_embeddings=16,
                  num_rbf=16, top_k=30, augment_eps=0., num_chain_embeddings=16, action_centers=None):
         """ Extract protein features """
-        super(SideChainProteinFeatures, self).__init__()
+        super().__init__()
         self.edge_features = edge_features
         self.top_k = top_k
         self.augment_eps = augment_eps
@@ -305,10 +300,10 @@ class SideChainProteinFeatures(nn.Module):
             ], device=X.device) # [21, 14]
             
             def batched_index_select(
-                input: Shaped[Tensor, "batch *features"],
+                input: Shaped[Tensor, batch *features],
                 dim: int,
                 index: Int[Tensor, "batch selected"],
-            ) -> Shaped[Tensor, "batch *selected_features"]:
+            ) -> Shaped[Tensor, batch *selected_features]:
                 for ii in range(1, len(input.shape)):
                     if ii != dim:
                         index = index.unsqueeze(ii)
@@ -386,7 +381,7 @@ class SideChainModule(nn.Module):
     def __init__(self, num_positional_embeddings=16, num_rbf=16, 
                  node_features=128, edge_features=128, top_k=30, augment_eps=0., encoder_layers=1, hidden_dim=128, 
                  thru=False, action_centers='none'):
-        super(SideChainModule, self).__init__()
+        super().__init__()
                 
         vocab=21
         dropout=0.1
@@ -442,7 +437,7 @@ class SideChainModule(nn.Module):
 
 class SimpleMPNNAgg(nn.Module):
     def __init__(self, num_hidden, num_in, dropout=0.1, scale=30):
-        super(SimpleMPNNAgg, self).__init__()
+        super().__init__()
 
         self.scale = scale
         self.dropout1 = nn.Dropout(dropout)
@@ -484,7 +479,7 @@ class LightAttention(nn.Module):
     https://github.com/HannesStark/protein-localization/blob/master/models/light_attention.py
     """
     def __init__(self, embeddings_dim=1024, output_dim=11, dropout=0.25, kernel_size=9, conv_dropout=0.25, linear=False):
-        super(LightAttention, self).__init__()
+        super().__init__()
 
         self.feature_convolution = nn.Conv1d(embeddings_dim, embeddings_dim, kernel_size, stride=1,
                                             padding=kernel_size // 2)
@@ -513,7 +508,7 @@ class LightAttention(nn.Module):
 
 class MPNNLayer(nn.Module):
     def __init__(self, num_hidden, num_in, dropout=0.1, scale=30):
-        super(MPNNLayer, self).__init__()
+        super().__init__()
 
         self.num_in = num_in
         print('Agg drop:', dropout)

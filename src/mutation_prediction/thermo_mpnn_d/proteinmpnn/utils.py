@@ -11,12 +11,12 @@ import csv
 import os
 import random
 import time
-from typing import Any, Iterable, Iterator, Sequence
+from collections.abc import Iterable, Iterator, Sequence
+from typing import Any
 
 import numpy as np
 import torch
 from dateutil import parser
-from torch.utils.data import DataLoader
 
 from mutation_prediction.tensor_types import (
     AssemblyRecord,
@@ -54,7 +54,7 @@ def get_mean_stats(dir):
         print(f'\t{cat} = {np.mean(sequence_recovery[cat]):.4f} +- {np.std(sequence_recovery[cat]):.4f}')
 
 
-class StructureDataset():
+class StructureDataset:
     def __init__(self, pdb_dict_list, verbose=True, truncate=None, max_length=100,
         alphabet='ACDEFGHIKLMNPQRSTVWYX'):
         alphabet_set = set([a for a in alphabet])
@@ -97,7 +97,7 @@ class StructureDataset():
         return self.data[idx]
 
 
-class StructureLoader():
+class StructureLoader:
     def __init__(self, dataset, batch_size=100, shuffle=True,
         collate_fn=lambda x:x, drop_last=False):
         self.dataset = dataset
@@ -368,8 +368,8 @@ def loader_pdb(item: Sequence[str], params: dict[str, Any]) -> AssemblyRecord:
 
 
 def build_training_clusters(params, debug):
-    val_ids = set([int(l) for l in open(params['VAL']).readlines()])
-    test_ids = set([int(l) for l in open(params['TEST']).readlines()])
+    val_ids = set([int(l) for l in open(params['VAL'])])
+    test_ids = set([int(l) for l in open(params['TEST'])])
    
     if debug:
         val_ids = []
@@ -392,17 +392,17 @@ def build_training_clusters(params, debug):
         rows = rows[:20]
     for r in rows:
         if r[2] in val_ids:
-            if r[2] in valid.keys():
+            if r[2] in valid:
                 valid[r[2]].append(r[:2])
             else:
                 valid[r[2]] = [r[:2]]
         elif r[2] in test_ids:
-            if r[2] in test.keys():
+            if r[2] in test:
                 test[r[2]].append(r[:2])
             else:
                 test[r[2]] = [r[:2]]
         else:
-            if r[2] in train.keys():
+            if r[2] in train:
                 train[r[2]].append(r[:2])
             else:
                 train[r[2]] = [r[:2]]

@@ -61,6 +61,52 @@ class ProteinMPNNFeatureExtractor(nn.Module):
         mut_wildtype_AAs: Int[Tensor, "batch mutations"],
         mut_mutant_AAs: Int[Tensor, "batch mutations"],
     ) -> Float[Tensor, "batch mutations features"]:
+        """Extract one feature vector per mutation from a wild-type protein pass.
+
+        Run ProteinMPNN once on the full protein, then gather features at each
+        mutation site. Each vector concatenates the last K decoder states
+        (last layer first) with the site's wild-type amino-acid embedding.
+        When mutant_embedding is enabled, subtract the replacement amino-acid
+        embedding from the wild-type embedding before concatenation.
+
+        Args:
+            X: Protein atom coordinates, shaped [B, L, A, 3].
+                The last axis contains x, y, z coordinates.
+            S: Amino-acid token IDs, shaped [B, L]. Mutation sites are
+                restored to their wild-type identities before encoding.
+            mask: Valid-residue mask, shaped [B, L]. Values are 1 for
+                usable residues and 0 for padding or missing coordinates.
+            chain_M: ProteinMPNN design mask, shaped [B, L]. Values are
+                1 for residues in chains whose sequences should be predicted.
+            residue_idx: Residue indices, shaped [B, L], including offsets
+                at chain boundaries. Used to encode relative positions.
+            chain_encoding_all: Integer chain IDs for each residue,
+                shaped [B, L].
+            mut_positions: Zero-based mutation positions in the concatenated
+                protein sequence, shaped [B, M].
+            mut_wildtype_AAs: Wild-type amino-acid token IDs at the mutation
+                sites, shaped [B, M].
+            mut_mutant_AAs: Replacement amino-acid token IDs at the mutation
+                sites, shaped [B, M]. Used only when mutant_embedding is
+                enabled; replacements are not passed through the encoder.
+
+        Returns:
+            Per-mutation features, shaped [B, M, D], in the same site order as
+            mut_positions. D = E * (K + 1), where E is the encoder's embedding
+            width and K is num_final_layers. With E = 128 and K = 2, D = 384.
+
+        Raises:
+            ValueError: If num_final_layers exceeds the number of decoder
+                states returned by the encoder.
+
+        Notes:
+            B is the batch size, L is the padded number of residues across
+            all chains, A is the number of atoms per residue, and M is the
+            padded number of mutation sites. Padded mutation slots also
+            produce feature vectors; this method does not mask them out.
+            Sequence corrections use a clone of S, and NaN coordinates are
+            replaced with zero before encoding without modifying X in place.
+        """
         S = _check_sequence_match(S, mut_wildtype_AAs, mut_mutant_AAs, mut_positions)
         X = torch.nan_to_num(X, nan=0.0)
         hidden_states, wt_embed, _, _ = self.prot_mpnn(

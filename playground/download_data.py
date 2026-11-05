@@ -1,5 +1,6 @@
-from pathlib import Path
 import tarfile
+from pathlib import Path
+
 from zenodo_get import download
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data" / "raw"

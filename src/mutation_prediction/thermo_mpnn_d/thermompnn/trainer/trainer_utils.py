@@ -4,8 +4,8 @@ Paper map: reports regression performance for the experimental stability
 change target during model training and evaluation.
 """
 
-from torchmetrics import R2Score, MeanSquaredError, SpearmanCorrCoef, F1Score
-from torchmetrics.functional import r2_score, mean_squared_error, pearson_corrcoef
+from torchmetrics import F1Score, MeanSquaredError, R2Score, SpearmanCorrCoef
+from torchmetrics.functional import mean_squared_error, pearson_corrcoef, r2_score
 
 
 def get_metrics(clf=False, sym=False):

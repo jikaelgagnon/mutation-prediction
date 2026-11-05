@@ -10,7 +10,7 @@ import argparse
 import hashlib
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
@@ -18,8 +18,8 @@ import pandas as pd
 import torch
 from tqdm import tqdm
 
-from mutation_prediction.thermompnn import ALPHABET, ThermoMPNNPredictor
 from mutation_prediction.thermo_mpnn_d.thermompnn.protein_mpnn_utils import parse_PDB
+from mutation_prediction.thermompnn import ALPHABET, ThermoMPNNPredictor
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SUBSTITUTION = re.compile(r"([ACDEFGHIKLMNPQRSTVWY])([1-9][0-9]*)([ACDEFGHIKLMNPQRSTVWY])")
@@ -208,7 +208,7 @@ def main():
         })
     result = add_epsilon_targets(result)
     metadata.update({
-        "created_at_utc": datetime.now(timezone.utc).isoformat(),
+        "created_at_utc": datetime.now(UTC).isoformat(),
         "pair_count": len(result),
         "prediction_units": "kcal/mol",
         "prediction_sign": "positive = destabilizing",

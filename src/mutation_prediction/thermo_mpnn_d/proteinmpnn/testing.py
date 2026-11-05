@@ -6,17 +6,23 @@ foundation; ThermoMPNN-D mutation-effect evaluation is under
 """
 
 import argparse
+import queue
+import random
+from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 import torch
-import queue
-import copy
-import random
-import os.path
-from concurrent.futures import ProcessPoolExecutor    
+from model_utils import ProteinMPNN, featurize, loss_nll
 from tqdm import tqdm
-from utils import worker_init_fn, get_pdbs, loader_pdb, build_training_clusters, PDB_dataset, StructureDataset, StructureLoader
-from model_utils import featurize, loss_nll, ProteinMPNN
+from utils import (
+    PDB_dataset,
+    StructureDataset,
+    StructureLoader,
+    build_training_clusters,
+    get_pdbs,
+    loader_pdb,
+    worker_init_fn,
+)
 
 
 def main(args):

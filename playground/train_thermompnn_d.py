@@ -35,7 +35,6 @@ def _(mo):
     augmentation is not enabled: it additionally requires the separate
     multi-gigabyte MegaScale Rosetta structure archive.
     """)
-    return
 
 
 @app.cell
@@ -161,13 +160,11 @@ def _(mo, train_dataset, val_dataset):
     {len(val_dataset):,} validation. The data and structure files are read from
     `data/raw/megascale/`.
     """)
-    return
 
 
 @app.cell
 def _(train_dataset):
     train_dataset.df[["WT_name", "mut_type", "ddG_ML", "aa_seq"]].head(12)
-    return
 
 
 @app.cell(hide_code=True)
@@ -225,7 +222,6 @@ def _(mo):
     penalty, as implemented by `TransferModelPLv2Siamese`. The pretrained
     ProteinMPNN is frozen; the Siamese projection/head remains trainable.
     """)
-    return
 
 
 @app.cell
@@ -416,7 +412,6 @@ def _(
             ]
         )
     prediction_summary
-    return
 
 
 if __name__ == "__main__":

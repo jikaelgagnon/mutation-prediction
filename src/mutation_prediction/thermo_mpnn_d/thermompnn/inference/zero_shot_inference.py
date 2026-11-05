@@ -4,16 +4,22 @@ Paper map: contrasts transfer-trained stability predictions with a baseline
 derived from ProteinMPNN's amino-acid log probabilities at mutation sites.
 """
 
-import torch
 import argparse
-from omegaconf import OmegaConf
-import pandas as pd
 import os
 
-from mutation_prediction.thermo_mpnn_d.thermompnn.inference.v2_inference import load_v2_dataset, run_prediction_batched
+import pandas as pd
+import torch
+from omegaconf import OmegaConf
+
+from mutation_prediction.thermo_mpnn_d.thermompnn.inference.v2_inference import (
+    load_v2_dataset,
+    run_prediction_batched,
+)
 from mutation_prediction.thermo_mpnn_d.thermompnn.protein_mpnn_utils import ProteinMPNN
-from mutation_prediction.thermo_mpnn_d.thermompnn.trainer.v2_trainer import TransferModelPLv2
 from mutation_prediction.thermo_mpnn_d.thermompnn.train_thermompnn import parse_cfg
+from mutation_prediction.thermo_mpnn_d.thermompnn.trainer.v2_trainer import (
+    TransferModelPLv2,
+)
 
 
 def inference(cfg, args):
@@ -66,7 +72,6 @@ def inference(cfg, args):
     print(df)
     df.to_csv(f"ThermoMPNN_{os.path.basename(model_name).removesuffix('.ckpt')}_{ds_name}_metrics.csv")
 
-    return
 
 
 if __name__ == "__main__":

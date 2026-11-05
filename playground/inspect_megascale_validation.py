@@ -18,7 +18,6 @@ def _(mo):
 
     Load `MegaScaleDatasetv2` with the validation split, browse its rows, and inspect an individual sample. Set `index` in the final cell to view another example.
     """)
-    return
 
 
 @app.cell
@@ -26,7 +25,6 @@ def _():
     import sys
     from pathlib import Path
 
-    import numpy as np
     from omegaconf import OmegaConf
 
     REPO_ROOT = Path.cwd()
@@ -38,7 +36,9 @@ def _():
     if str(SRC_ROOT) not in sys.path:
         sys.path.insert(0, str(SRC_ROOT))
 
-    from mutation_prediction.thermo_mpnn_d.thermompnn.datasets.v2_datasets import MegaScaleDatasetv2
+    from mutation_prediction.thermo_mpnn_d.thermompnn.datasets.v2_datasets import (
+        MegaScaleDatasetv2,
+    )
 
     return MegaScaleDatasetv2, OmegaConf, Path, REPO_ROOT
 
@@ -77,7 +77,6 @@ def _(dataset):
 @app.cell
 def _(sample):
     sample
-    return
 
 
 @app.cell

@@ -35,7 +35,6 @@ def _(mo):
     representations; it does not load the trained ThermoMPNN-D prediction head,
     so it does not report a meaningful ddG prediction.
     """)
-    return
 
 
 @app.cell
@@ -45,7 +44,6 @@ def _():
 
     import altair as alt
     import marimo as mo
-    import numpy as np
     import pandas as pd
     import torch
     from omegaconf import OmegaConf
@@ -137,13 +135,11 @@ def _(dataset, mo):
     The table is filtered to direct MegaScale double-mutant examples and sorted
     by protein length by the dataset implementation.
     """)
-    return
 
 
 @app.cell
 def _(dataset):
     dataset.df[["WT_name", "mut_type", "ddG_ML", "aa_seq"]].head(12)
-    return
 
 
 @app.cell(hide_code=True)
@@ -182,7 +178,6 @@ def _(dataset, index_picker):
 @app.cell
 def _(sample):
     sample
-    return
 
 
 @app.cell(hide_code=True)
@@ -207,7 +202,6 @@ def _(mo, mutation, row, selected_index):
     The structure and sequence are the wild-type protein. The model receives
     the two mutation positions and residue identities as separate tensors.
     """)
-    return
 
 
 @app.cell
@@ -220,7 +214,6 @@ def _(sample, tied_featurize_mut):
 @app.cell
 def _(batch):
     batch # tuple of length 12
-    return
 
 
 @app.cell
@@ -316,19 +309,16 @@ def _(mo):
 
     This is why  `chain_encoding_all`  and  `residue_idx`  exist: they keep chain boundaries intact even after all residues are assembled into a single padded  `[B, L_max, ...`]  tensor.
     """)
-    return
 
 
 @app.cell
 def _(X):
     X.shape # 1 x L x 4 x 3
-    return
 
 
 @app.cell
 def _(S):
     S
-    return
 
 
 @app.cell
@@ -342,19 +332,16 @@ def _(S):
 @app.cell
 def _(mask):
     mask
-    return
 
 
 @app.cell
 def _(lengths):
     lengths
-    return
 
 
 @app.cell
 def _(chain_encoding_all):
     chain_encoding_all
-    return
 
 
 @app.cell(hide_code=True)
@@ -368,7 +355,6 @@ def _(mo):
     amino-acid IDs are retained for selecting mutation-site representations
     after the encoder runs.
     """)
-    return
 
 
 @app.cell
@@ -409,7 +395,6 @@ def _(
         tensor_rows.append(row_data)
     input_summary = pd.DataFrame(tensor_rows).set_index("input")
     input_summary
-    return
 
 
 @app.cell(hide_code=True)
@@ -417,7 +402,6 @@ def _(mo):
     mo.md(r"""
     #### Instantiating the model
     """)
-    return
 
 
 @app.cell
@@ -447,7 +431,6 @@ def _(mo):
 
     Here we run the model and inspect the outputs, and we also use a PyTorch hook to extract the initial edges and edge features for the protein.
     """)
-    return
 
 
 @app.cell
@@ -515,7 +498,6 @@ def _(mo):
     `E_idx` records which residue is each neighbor. ProteinMPNN uses `E` and
     `E_idx` as graph edges for its encoder.
     """)
-    return
 
 
 @app.cell(hide_code=True)
@@ -532,7 +514,6 @@ def _(mo):
     - `log_probs` are ProteinMPNN's amino-acid log
     probabilities; ThermoMPNN-D does not use those as its ddG prediction here.
     """)
-    return
 
 
 @app.cell(hide_code=True)
@@ -561,7 +542,6 @@ def _(h_E, hidden_layers, log_probs, pd, wt_embed):
         )
     mpnn_summary = pd.DataFrame(mpnn_rows).set_index("output")
     mpnn_summary
-    return
 
 
 @app.cell(hide_code=True)
@@ -653,13 +633,11 @@ def _(mo):
     the sites in AB and BA order. The table below shows the extracted shapes
     and whether the inter-mutation edge was found.
     """)
-    return
 
 
 @app.cell
 def _(site_feature_table):
     site_feature_table
-    return
 
 
 @app.cell
@@ -699,7 +677,6 @@ def _(alt, mo, pd, site_vectors):
         )
     )
     mo.ui.altair_chart(feature_heatmap)
-    return
 
 
 @app.cell(hide_code=True)
@@ -711,7 +688,6 @@ def _(active_device, checkpoint_picker, mo, protein_mpnn):
         f"**Encoder:** `{checkpoint_picker.value}` · **device:** `{active_device}` · "
         f"**frozen parameters:** {frozen_parameter_count:,}"
     )
-    return
 
 
 if __name__ == "__main__":

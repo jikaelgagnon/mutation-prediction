@@ -49,9 +49,7 @@ def get_chains(pdb_file, chain_list):
     structure = parser.get_structure("", pdb_file)
     pdb_chains = [c.id for c in structure.get_chains()]
 
-    if chain_list is None:  # fill in all chains if left blank
-        chain_list = pdb_chains
-    elif len(chain_list) < 1:
+    if chain_list is None or len(chain_list) < 1:  # fill in all chains if left blank
         chain_list = pdb_chains
 
     for ch in chain_list:
@@ -155,7 +153,7 @@ def custom_parse_PDB_biounits(
         return [[aa_1_N.get(a, states - 1) for a in y] for y in x]
 
     def N_to_AA(
-        x: Int[np.ndarray, "length"]
+        x: Int[np.ndarray, length]
         | Int[np.ndarray, "batch length"]
         | list[int]
         | list[list[int]],
@@ -203,10 +201,8 @@ def custom_parse_PDB_biounits(
                     resa, resn = resn[-1], int(resn[:-1]) - 1
                 else:
                     resa, resn = "", int(resn) - 1
-                if resn < min_resn:
-                    min_resn = resn
-                if resn > max_resn:
-                    max_resn = resn
+                min_resn = min(min_resn, resn)
+                max_resn = max(max_resn, resn)
                 if resn not in xyz:
                     xyz[resn] = {}
                 if resa not in xyz[resn]:
@@ -410,7 +406,7 @@ def custom_parse_PDB(
 
 def idx_to_pdb_num(
     pdb: ProteinRecord,
-    poslist: Int[np.ndarray, "mutations"] | list[int],
+    poslist: Int[np.ndarray, mutations] | list[int],
 ) -> list[str]:
     # set up PDB resns and boundaries
     chains = [key[-1] for key in pdb.keys() if key.startswith("resn_list_")]

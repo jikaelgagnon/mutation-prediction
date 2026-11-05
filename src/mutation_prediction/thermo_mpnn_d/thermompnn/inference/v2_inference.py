@@ -208,7 +208,7 @@ def zero_shot_convert(
     positions: Int[Tensor, "batch mutations"],
     mut_AAs: Int[Tensor, "batch mutations"],
     wt_AAs: Int[Tensor, "batch mutations"] | None = None,
-) -> Float[Tensor, "batch"] | Float[Tensor, "batch mutations mutations"]:
+) -> Float[Tensor, batch] | Float[Tensor, "batch mutations mutations"]:
     """Convert log-probabilities to mutation scores.
 
     A single site returns [batch]. Multiple sites retain both gather axes and

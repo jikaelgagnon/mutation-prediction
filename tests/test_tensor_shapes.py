@@ -11,7 +11,11 @@ import torch
 from jaxtyping import jaxtyped
 from omegaconf import OmegaConf
 
-from mutation_prediction.model.model import PooledAttentionModel
+from mutation_prediction.model import (
+    MutationPredictionModel,
+    PooledAttentionHead,
+    ProteinMPNNFeatureExtractor,
+)
 from mutation_prediction.thermo_mpnn_d.proteinmpnn import model_utils, rigid_utils
 from mutation_prediction.thermo_mpnn_d.thermompnn import protein_mpnn_utils
 from mutation_prediction.thermo_mpnn_d.thermompnn.datasets.dataset_utils import Mutation
@@ -90,7 +94,7 @@ class TensorShapeTests(unittest.TestCase):
         names = (
             "mutation_prediction.tensor_types",
             "mutation_prediction.thermompnn",
-            "mutation_prediction.model.features",
+            "mutation_prediction.model.feature_extraction",
             "mutation_prediction.model.heads",
             "mutation_prediction.model.model",
             "mutation_prediction.thermo_mpnn_d.proteinmpnn.model_utils",
@@ -137,7 +141,10 @@ class TensorShapeTests(unittest.TestCase):
         cfg = OmegaConf.create(
             {"model": {"num_final_layers": 1, "mutant_embedding": True}}
         )
-        model = PooledAttentionModel(cfg, protein_encoder=encoder).eval()
+        features = ProteinMPNNFeatureExtractor(cfg, protein_encoder=encoder)
+        model = MutationPredictionModel(
+            features, PooledAttentionHead(features.output_dim)
+        ).eval()
         for batch_size, atoms in ((1, 4), (2, 4), (2, 14)):
             with self.subTest(batch_size=batch_size, atoms=atoms):
                 records = [

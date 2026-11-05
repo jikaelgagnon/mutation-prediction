@@ -4,15 +4,22 @@ Paper map: selects the standard or Siamese Lightning wrapper, loads its
 checkpoint, and delegates batched prediction to ``v2_inference``.
 """
 
-import torch
 import argparse
-from omegaconf import OmegaConf
-import pandas as pd
 import os
 
-from mutation_prediction.thermo_mpnn_d.thermompnn.inference.v2_inference import load_v2_dataset, run_prediction_batched
-from mutation_prediction.thermo_mpnn_d.thermompnn.trainer.v2_trainer import TransferModelPLv2, TransferModelPLv2Siamese
+import pandas as pd
+import torch
+from omegaconf import OmegaConf
+
+from mutation_prediction.thermo_mpnn_d.thermompnn.inference.v2_inference import (
+    load_v2_dataset,
+    run_prediction_batched,
+)
 from mutation_prediction.thermo_mpnn_d.thermompnn.train_thermompnn import parse_cfg
+from mutation_prediction.thermo_mpnn_d.thermompnn.trainer.v2_trainer import (
+    TransferModelPLv2,
+    TransferModelPLv2Siamese,
+)
 
 
 def main():

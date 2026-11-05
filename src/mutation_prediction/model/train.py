@@ -1,4 +1,4 @@
-"""Train pooled attention against measured ddG or cached epsilon targets."""
+"""Train a configured prediction head against measured ddG or cached epsilon targets."""
 
 import argparse
 import os
@@ -9,11 +9,18 @@ from omegaconf import OmegaConf
 from pytorch_lightning.callbacks import ModelCheckpoint
 from torch.utils.data import DataLoader
 
-from mutation_prediction.model.model import PooledAttentionModelPL
+from mutation_prediction.model.feature_extraction import ProteinMPNNFeatureExtractor
+from mutation_prediction.model.heads import PooledAttentionHead
+from mutation_prediction.model.model import MutationPredictionModel, MutationPredictionModelPL
 from mutation_prediction.thermo_mpnn_d.thermompnn.datasets.v2_datasets import (
     tied_featurize_mut,
 )
 from mutation_prediction.thermo_mpnn_d.thermompnn.parsers import get_v2_dataset
+
+
+HEADS = {
+    "pooled_attention": PooledAttentionHead,
+}
 
 
 def parse_cfg(cfg):
@@ -46,6 +53,7 @@ def parse_cfg(cfg):
 
     # model config
     cfg.model = cfg.get('model', {})
+    cfg.model.head = cfg.model.get('head', 'pooled_attention')
     cfg.model.num_final_layers = cfg.model.get('num_final_layers', 2)
     cfg.model.freeze_weights = cfg.model.get('freeze_weights', True)
     cfg.model.load_pretrained = cfg.model.get('load_pretrained', True)
@@ -63,6 +71,11 @@ def parse_cfg(cfg):
 
 def train(cfg):
     cfg = parse_cfg(cfg)
+    if cfg.model.head not in HEADS:
+        raise ValueError(
+            f"Unknown model.head {cfg.model.head!r}. Available heads: {', '.join(HEADS)}"
+        )
+    head_constructor = HEADS[cfg.model.head]
     print('Configuration:\n', OmegaConf.to_yaml(cfg))
     pl.seed_everything(cfg.training.get('seed', 42), workers=True)
 
@@ -86,7 +99,10 @@ def train(cfg):
         batch_size=cfg.training.batch_size,
     )
 
-    model_pl = PooledAttentionModelPL(cfg)
+    feature_extractor = ProteinMPNNFeatureExtractor(cfg)
+    prediction_head = head_constructor(input_dim=feature_extractor.output_dim)
+    model = MutationPredictionModel(feature_extractor, prediction_head)
+    model_pl = MutationPredictionModelPL(cfg, model)
     
     metric = cfg.training.get('checkpoint_metric', 'spearman')
     if metric not in ('mse', 'spearman'):

@@ -7,7 +7,8 @@ mutation-effect prediction head.
 
 from __future__ import annotations
 
-from typing import Any, Callable, Optional, Sequence, Tuple
+from collections.abc import Callable, Sequence
+from typing import Any
 
 import numpy as np
 import torch
@@ -61,8 +62,8 @@ _qtr_ind_dict = {key: ind for ind, key in enumerate(_qtr_keys)}
 
 def identity_rot_mats(
     batch_dims: tuple[int, ...],
-    dtype: Optional[torch.dtype] = None,
-    device: Optional[torch.device] = None,
+    dtype: torch.dtype | None = None,
+    device: torch.device | None = None,
     requires_grad: bool = True,
 ) -> Float[Tensor, "*batch 3 3"]:
     rots = torch.eye(
@@ -76,8 +77,8 @@ def identity_rot_mats(
 
 def identity_quats(
     batch_dims: tuple[int, ...],
-    dtype: Optional[torch.dtype] = None,
-    device: Optional[torch.device] = None,
+    dtype: torch.dtype | None = None,
+    device: torch.device | None = None,
     requires_grad: bool = True,
 ) -> Float[Tensor, "*batch 4"]:
     quat = torch.zeros(
@@ -287,8 +288,8 @@ def invert_quat(quat: Float[Tensor, "*batch 4"]) -> Float[Tensor, "*batch 4"]:
 
 def identity_trans(
     batch_dims: tuple[int, ...],
-    dtype: Optional[torch.dtype] = None,
-    device: Optional[torch.device] = None,
+    dtype: torch.dtype | None = None,
+    device: torch.device | None = None,
     requires_grad: bool = True,
 ) -> Float[Tensor, "*batch 3"]:
     trans = torch.zeros(
@@ -351,8 +352,8 @@ class Rotation:
     @staticmethod
     def identity(
         shape: tuple[int, ...],
-        dtype: Optional[torch.dtype] = None,
-        device: Optional[torch.device] = None,
+        dtype: torch.dtype | None = None,
+        device: torch.device | None = None,
         requires_grad: bool = True,
         fmt: str = "quat",
     ) -> Rotation:
@@ -752,7 +753,7 @@ class Rotation:
         else:
             raise ValueError("Both rotations are None")
 
-    def to(self, device: Optional[torch.device], dtype: Optional[torch.dtype]) -> Rotation:
+    def to(self, device: torch.device | None, dtype: torch.dtype | None) -> Rotation:
         """
             Analogous to the to() method of torch Tensors
             Args:
@@ -805,7 +806,7 @@ class Rigid:
         shape of the shared batch dimensions of its component parts.
     """
     def __init__(
-        self, rots: Optional[Rotation], trans: Float[Tensor, "*batch 3"] | None
+        self, rots: Rotation | None, trans: Float[Tensor, "*batch 3"] | None
     ) -> None:
         """
             Args:
@@ -850,8 +851,8 @@ class Rigid:
     @staticmethod
     def identity(
         shape: tuple[int, ...],
-        dtype: Optional[torch.dtype] = None,
-        device: Optional[torch.device] = None,
+        dtype: torch.dtype | None = None,
+        device: torch.device | None = None,
         requires_grad: bool = True,
         fmt: str = "quat",
     ) -> Rigid:
@@ -1148,11 +1149,11 @@ class Rigid:
             e0 = [c1 - c2 for c1, c2 in zip(origin, p_neg_x_axis)]
             e1 = [c1 - c2 for c1, c2 in zip(p_xy_plane, origin)]
 
-        denom = torch.sqrt(sum((c * c for c in e0)) + eps)
+        denom = torch.sqrt(sum(c * c for c in e0) + eps)
         e0 = [c / denom for c in e0]
         dot = sum((c1 * c2 for c1, c2 in zip(e0, e1)))
         e1 = [c2 - c1 * dot for c1, c2 in zip(e0, e1)]
-        denom = torch.sqrt(sum((c * c for c in e1)) + eps)
+        denom = torch.sqrt(sum(c * c for c in e1) + eps)
         e1 = [c / denom for c in e1]
         e2 = [
             e0[1] * e1[2] - e0[2] * e1[1],

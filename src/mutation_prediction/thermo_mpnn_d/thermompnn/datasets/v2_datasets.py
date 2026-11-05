@@ -805,7 +805,6 @@ class MegaScaleDatasetv2(torch.utils.data.Dataset):
         self.df['length'] = self.df.aa_seq.str.len()
         self.df = self.df.sort_values(by='length')
         self.df.drop(columns='length')
-        return
 
     def _augment_double_mutants(self, df, c=1):
         """Use pairs of single mutants and modeled structures to make new double mutant data points
@@ -958,7 +957,6 @@ class MegaScaleDatasetv2(torch.utils.data.Dataset):
         doubles['ddg2'] = ddg2s
         doubles = doubles.loc[doubles.ddG_ML != -np.inf].reset_index(drop=True)
         self.df = doubles
-        return
     
     def _add_reverse_mutations(self):
         # for each mutation, add row w/opposite ddG sign + flipped seq, wt, mut, etc.
@@ -1054,7 +1052,6 @@ class MegaScaleDatasetv2(torch.utils.data.Dataset):
         aug['DIRECT'] = False
         self.df = pd.concat([non_aug, aug], axis=0).sort_values(by='WT_name').reset_index(drop=True)
         self._sort_dataset()
-        return
 
 
 class ProteinGymDataset(torch.utils.data.Dataset):
@@ -1137,7 +1134,6 @@ def prebatch_dataset(dataset, workers=1):
     for batch in tqdm(loader):
         pass
     
-    return
 
 # if __name__ == "__main__":
 #     # testing functionality
