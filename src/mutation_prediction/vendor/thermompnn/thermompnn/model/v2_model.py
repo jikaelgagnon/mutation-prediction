@@ -24,10 +24,10 @@ from mutation_prediction.vendor.thermompnn.thermompnn.model.side_chain_model imp
 
 
 def batched_index_select(
-    input: Shaped[Tensor, batch *features],
+    input: Shaped[Tensor, batch * features],
     dim: int,
     index: Int[Tensor, "batch selected"],
-) -> Shaped[Tensor, batch *selected_features]:
+) -> Shaped[Tensor, batch * selected_features]:
     """Replace axis dim with selected indices; preserve every other input axis."""
     for ii in range(1, len(input.shape)):
         if ii != dim:
@@ -37,6 +37,7 @@ def batched_index_select(
     expanse[dim] = -1
     index = index.expand(expanse)
     return torch.gather(input, dim, index)
+
 
 def _dist(
     X: Float[Tensor, "batch length 3"],
@@ -49,11 +50,14 @@ def _dist(
     """ProteinMPNN distance calculation"""
     mask_2D = torch.unsqueeze(mask, 1) * torch.unsqueeze(mask, 2)
     dX = torch.unsqueeze(X, 1) - torch.unsqueeze(X, 2)
-    D = mask_2D * torch.sqrt(torch.sum(dX ** 2, 3) + eps)
+    D = mask_2D * torch.sqrt(torch.sum(dX**2, 3) + eps)
     D_max, _ = torch.max(D, -1, keepdim=True)
-    D_adjust = D + (1. - mask_2D) * D_max
-    D_neighbors, E_idx = torch.topk(D_adjust, np.minimum(top_k, X.shape[1]), dim=-1, largest=False)
+    D_adjust = D + (1.0 - mask_2D) * D_max
+    D_neighbors, E_idx = torch.topk(
+        D_adjust, np.minimum(top_k, X.shape[1]), dim=-1, largest=False
+    )
     return D_neighbors, E_idx
+
 
 def _get_cbeta(
     X: Float[Tensor, "batch length atoms 3"],
@@ -66,6 +70,7 @@ def _get_cbeta(
     Cb = Cb.unsqueeze(2)
     return torch.cat([Cb, X], axis=2)
 
+
 def _check_sequence_match(
     S: Int[Tensor, "batch length"],
     wt: Int[Tensor, "batch mutations"],
@@ -73,18 +78,28 @@ def _check_sequence_match(
     pos: Int[Tensor, "batch mutations"],
 ) -> Int[Tensor, "batch length"]:
     """
-    Checks if S matches wt amino acids at the specified positions. 
+    Checks if S matches wt amino acids at the specified positions.
     If not matching, adjusts S to match wt.
     """
     S = S.clone()
-    for mut_idx in range(wt.shape[-1]): # check each mutation separately
-        S_check = torch.gather(S, -1, pos[..., mut_idx, None]) # selects all amino acids in seq at pos locations
-        
+    for mut_idx in range(wt.shape[-1]):  # check each mutation separately
+        S_check = torch.gather(
+            S, -1, pos[..., mut_idx, None]
+        )  # selects all amino acids in seq at pos locations
+
         # check against wt array (one-hot)
-        if torch.sum(S_check - wt[..., mut_idx]) != 0: # if matched, keep S values
-            S_check = torch.gather(S, -1, pos[..., mut_idx, None]) # selects all amino acids in seq at pos locations
-            S.scatter_(dim=1, index=pos[..., mut_idx][..., None], src=wt[..., mut_idx][..., None]) # scatter wt values into S at specified positions
-            S_check = torch.gather(S, -1, pos[..., mut_idx, None]) # selects all amino acids in seq at pos locations
+        if torch.sum(S_check - wt[..., mut_idx]) != 0:  # if matched, keep S values
+            S_check = torch.gather(
+                S, -1, pos[..., mut_idx, None]
+            )  # selects all amino acids in seq at pos locations
+            S.scatter_(
+                dim=1,
+                index=pos[..., mut_idx][..., None],
+                src=wt[..., mut_idx][..., None],
+            )  # scatter wt values into S at specified positions
+            S_check = torch.gather(
+                S, -1, pos[..., mut_idx, None]
+            )  # selects all amino acids in seq at pos locations
     return S
 
 
@@ -100,38 +115,64 @@ class TransferModelv2(nn.Module):
 
         if protein_encoder is not None:
             self.prot_mpnn = protein_encoder
-        elif 'proteinmpnn' in self.cfg.model:
+        elif "proteinmpnn" in self.cfg.model:
             # for side chain aware or alternatively trained models
             self.prot_mpnn = get_protein_mpnn_sca(cfg)
         else:
             self.prot_mpnn = get_protein_mpnn(cfg)
 
         HIDDEN_DIM, EMBED_DIM, VOCAB_DIM = self._set_model_dims()
-        hid_sizes = [(HIDDEN_DIM*self.cfg.model.num_final_layers + EMBED_DIM)]
+        hid_sizes = [(HIDDEN_DIM * self.cfg.model.num_final_layers + EMBED_DIM)]
         hid_sizes += list(self.cfg.model.hidden_dims)
-        hid_sizes += [ VOCAB_DIM ]
+        hid_sizes += [VOCAB_DIM]
 
-        print('MLP HIDDEN SIZES:', hid_sizes)
+        print("MLP HIDDEN SIZES:", hid_sizes)
 
         if self.cfg.model.lightattn:
             if self.multi_mutations:
                 self.light_attention = nn.Sequential()
                 # LayerNorm and project collected features down to 128-dimensions no matter what
-                self.light_attention.append(nn.LayerNorm(HIDDEN_DIM * self.cfg.model.num_final_layers + EMBED_DIM))  # do layer norm before MLP
-                self.light_attention.append(nn.Linear(HIDDEN_DIM * self.cfg.model.num_final_layers + EMBED_DIM, HIDDEN_DIM, bias=True)) # E down to 128 regardless
+                self.light_attention.append(
+                    nn.LayerNorm(
+                        HIDDEN_DIM * self.cfg.model.num_final_layers + EMBED_DIM
+                    )
+                )  # do layer norm before MLP
+                self.light_attention.append(
+                    nn.Linear(
+                        HIDDEN_DIM * self.cfg.model.num_final_layers + EMBED_DIM,
+                        HIDDEN_DIM,
+                        bias=True,
+                    )
+                )  # E down to 128 regardless
                 hid_sizes[0] = HIDDEN_DIM
             else:
-                self.light_attention = LightAttention(embeddings_dim=(HIDDEN_DIM*self.cfg.model.num_final_layers + EMBED_DIM), kernel_size=1)
-        
+                self.light_attention = LightAttention(
+                    embeddings_dim=(
+                        HIDDEN_DIM * self.cfg.model.num_final_layers + EMBED_DIM
+                    ),
+                    kernel_size=1,
+                )
+
         if self.cfg.model.dist:
             self.dist_norm = nn.LayerNorm(25)  # do normalization of raw dist values
 
         if self.cfg.model.side_chain_module:
-            rbfs = self.cfg.data.side_chain_rbfs if 'side_chain_rbfs' in self.cfg.data else 4
-            self.side_chain_features = SideChainModule(num_positional_embeddings=16, num_rbf=rbfs, 
-                                                       node_features=128, edge_features=128, 
-                                                       top_k=30, augment_eps=0., encoder_layers=1, thru=True, 
-                                                       action_centers=self.cfg.model.action_centers)
+            rbfs = (
+                self.cfg.data.side_chain_rbfs
+                if "side_chain_rbfs" in self.cfg.data
+                else 4
+            )
+            self.side_chain_features = SideChainModule(
+                num_positional_embeddings=16,
+                num_rbf=rbfs,
+                node_features=128,
+                edge_features=128,
+                top_k=30,
+                augment_eps=0.0,
+                encoder_layers=1,
+                thru=True,
+                action_centers=self.cfg.model.action_centers,
+            )
 
         self.ddg_out = nn.Sequential()
 
@@ -165,24 +206,43 @@ class TransferModelv2(nn.Module):
         # getting ProteinMPNN embeddings (use only backbone atoms)
         if self.multi_mutations:
             # check if S matches mut_wildtype_AAs - if not, overwrite it
-            S = _check_sequence_match(S, mut_wildtype_AAs, mut_mutant_AAs, mut_positions)
-        
+            S = _check_sequence_match(
+                S, mut_wildtype_AAs, mut_mutant_AAs, mut_positions
+            )
+
         X = torch.nan_to_num(X, nan=0.0)
         if self.cfg.model.side_chain_module:
-            all_mpnn_hid, mpnn_embed, _, mpnn_edges = self.prot_mpnn(X[:, :, :4, :], S, mask, chain_M, residue_idx, chain_encoding_all)
+            all_mpnn_hid, mpnn_embed, _, mpnn_edges = self.prot_mpnn(
+                X[:, :, :4, :], S, mask, chain_M, residue_idx, chain_encoding_all
+            )
         else:
-            all_mpnn_hid, mpnn_embed, _, mpnn_edges = self.prot_mpnn(X, S, mask, chain_M, residue_idx, chain_encoding_all)
- 
+            all_mpnn_hid, mpnn_embed, _, mpnn_edges = self.prot_mpnn(
+                X, S, mask, chain_M, residue_idx, chain_encoding_all
+            )
+
         if self.cfg.model.dist:
             X = _get_cbeta(X)
 
         if self.multi_mutations:
             if self.cfg.model.side_chain_module:
-                side_chain_embeds = self.side_chain_features(X, S, mask, chain_M, residue_idx, chain_encoding_all, all_mpnn_hid[0], atom_mask)
-            
+                side_chain_embeds = self.side_chain_features(
+                    X,
+                    S,
+                    mask,
+                    chain_M,
+                    residue_idx,
+                    chain_encoding_all,
+                    all_mpnn_hid[0],
+                    atom_mask,
+                )
+
             if self.cfg.model.num_final_layers > 0:
-                all_mpnn_hid = torch.cat(all_mpnn_hid[:self.cfg.model.num_final_layers], -1)
-                mpnn_embed = torch.cat([all_mpnn_hid, mpnn_embed], -1)  # WT seq and structure
+                all_mpnn_hid = torch.cat(
+                    all_mpnn_hid[: self.cfg.model.num_final_layers], -1
+                )
+                mpnn_embed = torch.cat(
+                    [all_mpnn_hid, mpnn_embed], -1
+                )  # WT seq and structure
 
                 if self.cfg.model.mutant_embedding:
                     # there are actually N sets of mutant sequences, so we need to run this N times
@@ -190,8 +250,10 @@ class TransferModelv2(nn.Module):
                     for m in range(mut_mutant_AAs.shape[-1]):
                         mut_embed = self.prot_mpnn.W_s(mut_mutant_AAs[:, m])
                         mut_embed_list.append(mut_embed)
-                    mut_embed = torch.cat([m.unsqueeze(-1) for m in mut_embed_list], -1) # shape: (Batch, Embed, N_muts)
-            
+                    mut_embed = torch.cat(
+                        [m.unsqueeze(-1) for m in mut_embed_list], -1
+                    )  # shape: (Batch, Embed, N_muts)
+
                 if self.cfg.model.edges:  # add edges to input for gathering
                     # E_idx is [B, K, L] and is a tensor of indices in X that should match neighbors
                     D_n, E_idx = _dist(X[:, :, 1, :], mask)
@@ -199,10 +261,21 @@ class TransferModelv2(nn.Module):
                     all_mpnn_edges = []
                     n_mutations = [a for a in range(mut_positions.shape[-1])]
                     for n_current in n_mutations:  # iterate over N-order mutations
-
                         # select the edges at the current mutated positions
-                        mpnn_edges_tmp = torch.squeeze(batched_index_select(mpnn_edges, 1, mut_positions[:, n_current:n_current+1]), 1)
-                        E_idx_tmp = torch.squeeze(batched_index_select(E_idx, 1, mut_positions[:, n_current:n_current+1]), 1)
+                        mpnn_edges_tmp = torch.squeeze(
+                            batched_index_select(
+                                mpnn_edges,
+                                1,
+                                mut_positions[:, n_current : n_current + 1],
+                            ),
+                            1,
+                        )
+                        E_idx_tmp = torch.squeeze(
+                            batched_index_select(
+                                E_idx, 1, mut_positions[:, n_current : n_current + 1]
+                            ),
+                            1,
+                        )
 
                         # find matches for each position in the array of neighbors, grab edges, and add to list
                         edges = []
@@ -211,9 +284,20 @@ class TransferModelv2(nn.Module):
                             n_other = [a for a in n_mutations if a != n_current]
                             tmp_edges = []
                             for n_o in n_other:
-                                idx = torch.where(E_idx_tmp[b, :] == mut_positions[b, n_o:n_o+1].expand(1, E_idx_tmp.shape[-1]))
-                                if len(idx[0]) == 0: # if no edge exists, fill with empty edge for now
-                                    edge = torch.full([mpnn_edges_tmp.shape[-1]], torch.nan, device=E_idx.device)
+                                idx = torch.where(
+                                    E_idx_tmp[b, :]
+                                    == mut_positions[b, n_o : n_o + 1].expand(
+                                        1, E_idx_tmp.shape[-1]
+                                    )
+                                )
+                                if (
+                                    len(idx[0]) == 0
+                                ):  # if no edge exists, fill with empty edge for now
+                                    edge = torch.full(
+                                        [mpnn_edges_tmp.shape[-1]],
+                                        torch.nan,
+                                        device=E_idx.device,
+                                    )
                                 else:
                                     edge = mpnn_edges_tmp[b, idx[1][0], :]
                                 tmp_edges.append(edge)
@@ -227,8 +311,10 @@ class TransferModelv2(nn.Module):
                         edges_compiled = torch.stack(edges, dim=0)
                         all_mpnn_edges.append(edges_compiled)
 
-                    mpnn_edges = torch.stack(all_mpnn_edges, dim=-1) # shape: (Batch, Embed, N_muts)
-                
+                    mpnn_edges = torch.stack(
+                        all_mpnn_edges, dim=-1
+                    )  # shape: (Batch, Embed, N_muts)
+
                 elif self.cfg.model.dist:
                     # X is coord matrix of size [B, L, 5, 3]
                     eps = 1e-6
@@ -236,81 +322,128 @@ class TransferModelv2(nn.Module):
                     dX_all_agg = []
                     for n_current in n_mutations:
                         # select target coordinates
-                        target = batched_index_select(X, 1, mut_positions[:, n_current: n_current + 1])
+                        target = batched_index_select(
+                            X, 1, mut_positions[:, n_current : n_current + 1]
+                        )
 
                         n_other = [a for a in n_mutations if a != n_current]
                         for n_o in n_other:
                             # select each match and calculate distances
-                            match = batched_index_select(X, 1, mut_positions[:, n_o: n_o + 1])
+                            match = batched_index_select(
+                                X, 1, mut_positions[:, n_o : n_o + 1]
+                            )
                             # get distance calc for every pair of match, target dim 2
                             dX_all = []
                             for a in range(target.shape[2]):
                                 for b in range(match.shape[2]):
                                     # do distance calc with target[:, :, a, :] and match[:, ]
-                                    dX = torch.sqrt(torch.sum((target[:, :, a, :] - match[:, :, b, :]) ** 2, -1) + 1e-6)
+                                    dX = torch.sqrt(
+                                        torch.sum(
+                                            (target[:, :, a, :] - match[:, :, b, :])
+                                            ** 2,
+                                            -1,
+                                        )
+                                        + 1e-6
+                                    )
                                     dX_all.append(dX)
                             # gathered distances for all atom combos [B, A ** 2]
                             dX_all = torch.stack(dX_all, dim=-1)
-                            dX_all = torch.mean(dX_all, dim=1) # take mean dist for each mut - naive aggregation
+                            dX_all = torch.mean(
+                                dX_all, dim=1
+                            )  # take mean dist for each mut - naive aggregation
                             dX_all_agg.append(dX_all)
 
                     # dist output should be [B, A ** 2, N_mut] where A is num atoms being used
                     dX_all_agg = torch.stack(dX_all_agg, dim=-1)
 
-            all_mpnn_embed = [] 
+            all_mpnn_embed = []
             for i in range(mut_mutant_AAs.shape[-1]):
                 # gather embedding for a specific position
-                current_positions = mut_positions[:, i:i+1] # shape: (B, 1])
-                gathered_embed = torch.gather(mpnn_embed, 1, current_positions.unsqueeze(-1).expand(current_positions.size(0), current_positions.size(1), mpnn_embed.size(2)))
-                gathered_embed = torch.squeeze(gathered_embed, 1) # final shape: (batch, embed_dim)
+                current_positions = mut_positions[:, i : i + 1]  # shape: (B, 1])
+                gathered_embed = torch.gather(
+                    mpnn_embed,
+                    1,
+                    current_positions.unsqueeze(-1).expand(
+                        current_positions.size(0),
+                        current_positions.size(1),
+                        mpnn_embed.size(2),
+                    ),
+                )
+                gathered_embed = torch.squeeze(
+                    gathered_embed, 1
+                )  # final shape: (batch, embed_dim)
                 # add specific mutant embedding to gathered embed based on which mutation is being gathered
                 if self.cfg.model.mutant_embedding:
                     gathered_embed = torch.cat([gathered_embed, mut_embed[:, :, i]], -1)
-                
+
                 # cat to mpnn edges here if enabled
                 if self.cfg.model.edges:
-                    gathered_embed = torch.cat([gathered_embed, mpnn_edges[:, :, i]], -1)
+                    gathered_embed = torch.cat(
+                        [gathered_embed, mpnn_edges[:, :, i]], -1
+                    )
 
                 # cat to pairwise distances here if enabled
                 elif self.cfg.model.dist:
-                    gathered_embed = torch.cat([gathered_embed, self.dist_norm(dX_all_agg[:, :, i])], -1)
+                    gathered_embed = torch.cat(
+                        [gathered_embed, self.dist_norm(dX_all_agg[:, :, i])], -1
+                    )
 
                 if self.cfg.model.side_chain_module:
-                    side_chain_gathered = torch.gather(side_chain_embeds, 1, current_positions.unsqueeze(-1).expand(current_positions.size(0), current_positions.size(1), side_chain_embeds.size(2)))
+                    side_chain_gathered = torch.gather(
+                        side_chain_embeds,
+                        1,
+                        current_positions.unsqueeze(-1).expand(
+                            current_positions.size(0),
+                            current_positions.size(1),
+                            side_chain_embeds.size(2),
+                        ),
+                    )
                     side_chain_gathered = torch.squeeze(side_chain_gathered, 1)
-                    gathered_embed = torch.cat([gathered_embed, side_chain_gathered], -1)
+                    gathered_embed = torch.cat(
+                        [gathered_embed, side_chain_gathered], -1
+                    )
 
-                all_mpnn_embed.append(gathered_embed)  # list with length N_mutations - used to make permutations
+                all_mpnn_embed.append(
+                    gathered_embed
+                )  # list with length N_mutations - used to make permutations
 
-            if self.cfg.model.aggregation == 'mpnn':
+            if self.cfg.model.aggregation == "mpnn":
                 # get mask of which embeds are empty second halves of single mutations
                 mask = (mut_mutant_AAs + mut_wildtype_AAs + mut_positions) == 0
                 # mask and embeds can be [B, E, 1] or [B, E, 2]
-                assert(torch.sum(mask[:, 0]) == 0)  # check that first mutation is ALWAYS visible
-                mask = mask.unsqueeze(1).repeat(1, self.message_size, 1)  # expand along embedding dimension
+                assert (
+                    torch.sum(mask[:, 0]) == 0
+                )  # check that first mutation is ALWAYS visible
+                mask = mask.unsqueeze(1).repeat(
+                    1, self.message_size, 1
+                )  # expand along embedding dimension
 
-                if mask.shape[-1] == 1: # single mutant batches
+                if mask.shape[-1] == 1:  # single mutant batches
                     # run through for norm, but don't do any updates
                     # print('Singles only batch!')
                     # run embed through initial MLP, then aggregator
                     all_mpnn_embed[0] = self.aggregator[0:2](all_mpnn_embed[0])
-                    all_mpnn_embed[0] = self.aggregator[-1](all_mpnn_embed[0], all_mpnn_embed[0], mask.squeeze(-1) * 0.)
+                    all_mpnn_embed[0] = self.aggregator[-1](
+                        all_mpnn_embed[0], all_mpnn_embed[0], mask.squeeze(-1) * 0.0
+                    )
                 else:
                     # run both embeds through aggregator - use second half of mask to decide where to update
                     # TODO rewrite this to work on N-order mutations!
                     # convert each embedding to learned form
                     for i, emb in enumerate(all_mpnn_embed):
                         all_mpnn_embed[i] = self.aggregator[0:2](emb)
-                    
+
                     new_embs = []
                     # run single aggregated update for each mutation
                     for i, emb in enumerate(all_mpnn_embed):
-                        other_embs = [a for ia, a in enumerate(all_mpnn_embed) if ia != i]
+                        other_embs = [
+                            a for ia, a in enumerate(all_mpnn_embed) if ia != i
+                        ]
                         new_emb = self.aggregator[-1](emb, other_embs)
                         new_embs.append(new_emb)
                     all_mpnn_embed = new_embs
 
-                # aggregate the embeddings 
+                # aggregate the embeddings
                 all_mpnn_embed = torch.stack(all_mpnn_embed, dim=-1)
                 all_mpnn_embed[mask] = -float("inf")
                 mpnn_embed, _ = torch.max(all_mpnn_embed, dim=-1)
@@ -318,80 +451,114 @@ class TransferModelv2(nn.Module):
             else:  # non-learned aggregations
                 # run each embedding through LA / MLP layer, even if masked out
                 for n, emb in enumerate(all_mpnn_embed):
-                    emb = self.light_attention(emb)  # shape for LA output: (batch, embed_dim)
+                    emb = self.light_attention(
+                        emb
+                    )  # shape for LA output: (batch, embed_dim)
                     all_mpnn_embed[n] = emb  # update list of embs
-                all_mpnn_embed = torch.stack(all_mpnn_embed, dim=-1)  # shape: (batch, embed_dim, n_mutations)
+                all_mpnn_embed = torch.stack(
+                    all_mpnn_embed, dim=-1
+                )  # shape: (batch, embed_dim, n_mutations)
 
                 # get mask of which embeds are empty second halves of single mutations
                 mask = (mut_mutant_AAs + mut_wildtype_AAs + mut_positions) == 0
-                assert(torch.sum(mask[:, 0]) == 0)  # check that first mutation is ALWAYS visible
-                mask = mask.unsqueeze(1).repeat(1, all_mpnn_embed.shape[1], 1)  # expand along embedding dimension
-                
+                assert (
+                    torch.sum(mask[:, 0]) == 0
+                )  # check that first mutation is ALWAYS visible
+                mask = mask.unsqueeze(1).repeat(
+                    1, all_mpnn_embed.shape[1], 1
+                )  # expand along embedding dimension
+
                 # depending on aggregation fxn, different masking stlyes need to be done
-                if self.cfg.model.aggregation == 'mean':
+                if self.cfg.model.aggregation == "mean":
                     all_mpnn_embed[mask] = torch.nan
                     mpnn_embed = torch.nanmean(all_mpnn_embed, dim=-1)
-                elif self.cfg.model.aggregation == 'sum':
+                elif self.cfg.model.aggregation == "sum":
                     all_mpnn_embed[mask] = 0
                     mpnn_embed = torch.sum(all_mpnn_embed, dim=-1)
-                elif self.cfg.model.aggregation == 'prod':
+                elif self.cfg.model.aggregation == "prod":
                     all_mpnn_embed[mask] = 1
                     mpnn_embed = torch.prod(all_mpnn_embed, dim=-1)
-                elif self.cfg.model.aggregation == 'max':
+                elif self.cfg.model.aggregation == "max":
                     all_mpnn_embed[mask] = -float("inf")
                     mpnn_embed, _ = torch.max(all_mpnn_embed, dim=-1)
                 else:
                     raise ValueError("Invalid aggregation function selected")
 
         else:  # standard (single-mutation) indexing
-            
             if self.cfg.model.side_chain_module:
-                side_chain_embeds = self.side_chain_features(X, S, mask, chain_M, residue_idx, chain_encoding_all, all_mpnn_hid[0], atom_mask)
-                
+                side_chain_embeds = self.side_chain_features(
+                    X,
+                    S,
+                    mask,
+                    chain_M,
+                    residue_idx,
+                    chain_encoding_all,
+                    all_mpnn_hid[0],
+                    atom_mask,
+                )
+
             if self.cfg.model.num_final_layers > 0:
-                all_mpnn_hid = torch.cat(all_mpnn_hid[:self.cfg.model.num_final_layers], -1)
+                all_mpnn_hid = torch.cat(
+                    all_mpnn_hid[: self.cfg.model.num_final_layers], -1
+                )
                 embeds_all = [all_mpnn_hid, mpnn_embed]
                 if self.cfg.model.mutant_embedding:
                     mut_embed = self.prot_mpnn.W_s(mut_mutant_AAs[:, 0])
-                    embeds_all.append(mut_embed.unsqueeze(1).repeat(1, mpnn_embed.shape[1], 1))
+                    embeds_all.append(
+                        mut_embed.unsqueeze(1).repeat(1, mpnn_embed.shape[1], 1)
+                    )
                 if self.cfg.model.edges:  # add edges to input for gathering
                     # the self-edge is the edge with index ZERO for each position L
-                    mpnn_edges = mpnn_edges[:, :, 0, :]  # index 2 is the K neighbors index
+                    mpnn_edges = mpnn_edges[
+                        :, :, 0, :
+                    ]  # index 2 is the K neighbors index
                     # E_idx is [B, L, K] and is a tensor of indices in X that should match neighbors
                     embeds_all.append(mpnn_edges)
-                
+
                 if self.cfg.model.side_chain_module:
                     embeds_all.append(side_chain_embeds)
-            
+
             else:
                 embeds_all = [mpnn_embed]
             mpnn_embed = torch.cat(embeds_all, -1)
-            
+
             # vectorized indexing of the embeddings (this is very ugly but the best I can do for now)
-            mpnn_embed = torch.gather(mpnn_embed, 1, mut_positions.unsqueeze(-1).expand(mut_positions.size(0), mut_positions.size(1), mpnn_embed.size(2)))
-            mpnn_embed = torch.squeeze(mpnn_embed, 1) # final shape: (batch, embed_dim)
+            mpnn_embed = torch.gather(
+                mpnn_embed,
+                1,
+                mut_positions.unsqueeze(-1).expand(
+                    mut_positions.size(0), mut_positions.size(1), mpnn_embed.size(2)
+                ),
+            )
+            mpnn_embed = torch.squeeze(mpnn_embed, 1)  # final shape: (batch, embed_dim)
 
             if self.cfg.model.lightattn:
-                mpnn_embed = torch.unsqueeze(mpnn_embed, -1)  # shape for LA input: (batch, embed_dim, seq_length=1)
-                mpnn_embed = self.light_attention(mpnn_embed)  # shape for LA output: (batch, embed_dim)
+                mpnn_embed = torch.unsqueeze(
+                    mpnn_embed, -1
+                )  # shape for LA input: (batch, embed_dim, seq_length=1)
+                mpnn_embed = self.light_attention(
+                    mpnn_embed
+                )  # shape for LA output: (batch, embed_dim)
 
         ddg = self.ddg_out(mpnn_embed)  # shape: (batch, 21)
-        
+
         # index ddg outputs based on mutant AA indices
-        if self.cfg.model.subtract_mut: # output is [B, L, 21]
-            ddg = torch.gather(ddg, 1, mut_mutant_AAs) - torch.gather(ddg, 1, mut_wildtype_AAs)
-        elif self.cfg.model.single_target: # output is [B, L, 1]
+        if self.cfg.model.subtract_mut:  # output is [B, L, 21]
+            ddg = torch.gather(ddg, 1, mut_mutant_AAs) - torch.gather(
+                ddg, 1, mut_wildtype_AAs
+            )
+        elif self.cfg.model.single_target:  # output is [B, L, 1]
             pass
         else:  # output is [B, L, 21]
-           ddg = torch.gather(ddg, 1, mut_mutant_AAs)
-                       
+            ddg = torch.gather(ddg, 1, mut_mutant_AAs)
+
         return ddg, None
 
     def _set_model_dims(self) -> tuple[int, int, int]:
         """
         Parse various config options to properly set input, output, and vocab dimensions
         """
-        EMBED_DIM = 128 # mpnn default seq embed size
+        EMBED_DIM = 128  # mpnn default seq embed size
 
         if self.cfg.model.mutant_embedding:
             EMBED_DIM += 128
@@ -400,14 +567,12 @@ class TransferModelv2(nn.Module):
             EMBED_DIM += 128
         elif self.cfg.model.dist:
             EMBED_DIM += 25
-            
+
         if self.cfg.model.side_chain_module:
-            print('Enabling side chains!')
+            print("Enabling side chains!")
             EMBED_DIM += 128
-    
-        HIDDEN_DIM = 128 # mpnn default hidden dim size
+
+        HIDDEN_DIM = 128  # mpnn default hidden dim size
         VOCAB_DIM = 21 if not self.cfg.model.single_target else 1
 
         return HIDDEN_DIM, EMBED_DIM, VOCAB_DIM
-
-

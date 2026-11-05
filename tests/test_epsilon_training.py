@@ -43,15 +43,17 @@ def make_model(cfg):
 
 def structure(path, **kwargs):
     coords = np.random.default_rng(42).normal(size=(4, 4, 3))
-    return [{
-        'name': Path(path).stem,
-        'seq': 'ACDE',
-        'seq_chain_A': 'ACDE',
-        'coords_chain_A': {
-            f'{atom}_chain_A': coords[:, i].tolist()
-            for i, atom in enumerate(('N', 'CA', 'C', 'O'))
-        },
-    }]
+    return [
+        {
+            "name": Path(path).stem,
+            "seq": "ACDE",
+            "seq_chain_A": "ACDE",
+            "coords_chain_A": {
+                f"{atom}_chain_A": coords[:, i].tolist()
+                for i, atom in enumerate(("N", "CA", "C", "O"))
+            },
+        }
+    ]
 
 
 class EpsilonTrainingTests(unittest.TestCase):
@@ -59,47 +61,58 @@ class EpsilonTrainingTests(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
-        self.csv = self.root / 'epsilon.csv'
-        self.frame = pd.DataFrame({
-            'WT_name': ['train.pdb'] * 2 + ['val.pdb'] * 3,
-            'mut_type': ['A1V:D3G', 'A1G:E4K', 'A1V:D3G', 'A1G:E4K', 'C2V:D3W'],
-            'aa_seq': ['VCGE', 'GCDK', 'VCGE', 'GCDK', 'AVWE'],
-            'ddG_ML': [99.0] * 5,
-            'epsilon_target': [0.5, -1.25, 0.0, 2.0, -0.75],
-        })
+        self.csv = self.root / "epsilon.csv"
+        self.frame = pd.DataFrame(
+            {
+                "WT_name": ["train.pdb"] * 2 + ["val.pdb"] * 3,
+                "mut_type": ["A1V:D3G", "A1G:E4K", "A1V:D3G", "A1G:E4K", "C2V:D3W"],
+                "aa_seq": ["VCGE", "GCDK", "VCGE", "GCDK", "AVWE"],
+                "ddG_ML": [99.0] * 5,
+                "epsilon_target": [0.5, -1.25, 0.0, 2.0, -0.75],
+            }
+        )
         self.frame.to_csv(self.csv, index=False)
-        with (self.root / 'splits.pkl').open('wb') as stream:
-            pickle.dump({'train': ['train.pdb'], 'val': ['val.pdb']}, stream)
-        self.cfg = parse_cfg(OmegaConf.create({
-            'name': 'epsilon_test',
-            'data': {
-                'dataset': 'megascale', 'mut_types': ['double'],
-                'splits': ['train', 'val'], 'target_column': 'epsilon_target',
-            },
-            'data_loc': {
-                'megascale_csv': str(self.csv),
-                'megascale_splits': str(self.root / 'splits.pkl'),
-                'megascale_pdbs': str(self.root),
-            },
-            'model': {'mutant_embedding': True},
-            'training': {
-                'epochs': 1, 'batch_size': 2, 'learn_rate': 0.001,
-                'lr_schedule': True, 'checkpoint_metric': 'mse',
-                'output_dir': str(self.root / 'checkpoints'),
-            },
-            'platform': {'accel': 'cpu'},
-        }))
+        with (self.root / "splits.pkl").open("wb") as stream:
+            pickle.dump({"train": ["train.pdb"], "val": ["val.pdb"]}, stream)
+        self.cfg = parse_cfg(
+            OmegaConf.create(
+                {
+                    "name": "epsilon_test",
+                    "data": {
+                        "dataset": "megascale",
+                        "mut_types": ["double"],
+                        "splits": ["train", "val"],
+                        "target_column": "epsilon_target",
+                    },
+                    "data_loc": {
+                        "megascale_csv": str(self.csv),
+                        "megascale_splits": str(self.root / "splits.pkl"),
+                        "megascale_pdbs": str(self.root),
+                    },
+                    "model": {"mutant_embedding": True},
+                    "training": {
+                        "epochs": 1,
+                        "batch_size": 2,
+                        "learn_rate": 0.001,
+                        "lr_schedule": True,
+                        "checkpoint_metric": "mse",
+                        "output_dir": str(self.root / "checkpoints"),
+                    },
+                    "platform": {"accel": "cpu"},
+                }
+            )
+        )
         parser = patch(
-            'mutation_prediction.data.megascale.parse_PDB',
+            "mutation_prediction.data.megascale.parse_PDB",
             side_effect=structure,
         )
         parser.start()
         self.addCleanup(parser.stop)
 
     def test_epsilon_survives_loading_sorting_and_collation_without_sign_flip(self):
-        for split in ('train', 'val'):
+        for split in ("train", "val"):
             dataset = MegaScaleDatasetv2(self.cfg, split)
-            self.assertEqual(set(dataset.df.WT_name), {f'{split}.pdb'})
+            self.assertEqual(set(dataset.df.WT_name), {f"{split}.pdb"})
             expected = dataset.df.epsilon_target.to_numpy(dtype=np.float32)
             batch = tied_featurize_mut([dataset[i] for i in range(len(dataset))])
             torch.testing.assert_close(batch[10], torch.from_numpy(expected[:, None]))
@@ -107,100 +120,129 @@ class EpsilonTrainingTests(unittest.TestCase):
 
     def test_legacy_ddg_training_still_negates_original_labels(self):
         del self.cfg.data.target_column
-        dataset = MegaScaleDatasetv2(self.cfg, 'train')
-        self.assertEqual(dataset[0]['mutation'].ddG, -99.0)
+        dataset = MegaScaleDatasetv2(self.cfg, "train")
+        self.assertEqual(dataset[0]["mutation"].ddG, -99.0)
 
     def test_invalid_epsilon_labels_and_augmentation_fail(self):
-        for value in (float('nan'), float('inf'), 'invalid'):
+        for value in (float("nan"), float("inf"), "invalid"):
             with self.subTest(value=value):
                 frame = self.frame.copy()
-                frame['epsilon_target'] = frame['epsilon_target'].astype(object)
-                frame.loc[0, 'epsilon_target'] = value
+                frame["epsilon_target"] = frame["epsilon_target"].astype(object)
+                frame.loc[0, "epsilon_target"] = value
                 frame.to_csv(self.csv, index=False)
                 with self.assertRaises(ValueError):
-                    MegaScaleDatasetv2(self.cfg, 'train')
-        self.cfg.data.mut_types = ['double', 'double-aug']
-        with self.assertRaisesRegex(ValueError, 'unmodified double mutants'):
-            MegaScaleDatasetv2(self.cfg, 'train')
+                    MegaScaleDatasetv2(self.cfg, "train")
+        self.cfg.data.mut_types = ["double", "double-aug"]
+        with self.assertRaisesRegex(ValueError, "unmodified double mutants"):
+            MegaScaleDatasetv2(self.cfg, "train")
 
     def test_identity_substitution_in_either_site_is_excluded(self):
         extra = self.frame.iloc[[0, 0]].copy()
-        extra['mut_type'] = ['A1A:D3G', 'A1V:D3D']
+        extra["mut_type"] = ["A1A:D3G", "A1V:D3D"]
         pd.concat([self.frame, extra]).to_csv(self.csv, index=False)
-        dataset = MegaScaleDatasetv2(self.cfg, 'train')
+        dataset = MegaScaleDatasetv2(self.cfg, "train")
         self.assertEqual(len(dataset), 2)
 
     def test_structure_key_normalization_matches_on_load_and_lookup(self):
-        frame = self.frame.replace({'WT_name': {'train.pdb': 'train|part.pdb'}})
+        frame = self.frame.replace({"WT_name": {"train.pdb": "train|part.pdb"}})
         frame.to_csv(self.csv, index=False)
-        with (self.root / 'splits.pkl').open('wb') as stream:
-            pickle.dump({'train': ['train|part.pdb']}, stream)
-        dataset = MegaScaleDatasetv2(self.cfg, 'train')
-        self.assertEqual(dataset[0]['mutation'].pdb, 'train|part.pdb')
+        with (self.root / "splits.pkl").open("wb") as stream:
+            pickle.dump({"train": ["train|part.pdb"]}, stream)
+        dataset = MegaScaleDatasetv2(self.cfg, "train")
+        self.assertEqual(dataset[0]["mutation"].pdb, "train|part.pdb")
 
     def test_loss_is_mse_against_epsilon_and_singleton_batches_update_metrics(self):
         module = MutationPredictionModelPL(self.cfg, make_model(self.cfg))
-        dataset = MegaScaleDatasetv2(self.cfg, 'train')
+        dataset = MegaScaleDatasetv2(self.cfg, "train")
         for size in (1, 2):
             batch = tied_featurize_mut([dataset[i] for i in range(size)])
-            X, S, mask, _, chain_M, chains, indices, pos, wt, mut, target, atom_mask = batch
+            X, S, mask, _, chain_M, chains, indices, pos, wt, mut, target, atom_mask = (
+                batch
+            )
             expected = nn.functional.mse_loss(
-                module(X, S, mask, chain_M, indices, chains, pos, wt, mut, target, atom_mask),
+                module(
+                    X,
+                    S,
+                    mask,
+                    chain_M,
+                    indices,
+                    chains,
+                    pos,
+                    wt,
+                    mut,
+                    target,
+                    atom_mask,
+                ),
                 target,
             )
-            with patch.object(module, 'log'):
+            with patch.object(module, "log"):
                 loss = module.training_step(batch, 0)
             torch.testing.assert_close(loss, expected)
             loss.backward()
             self.assertIsNotNone(module.model.prediction_head.final_layer.weight.grad)
-        self.assertEqual(module.configure_optimizers()['monitor'], 'val_epsilon_mse')
+        self.assertEqual(module.configure_optimizers()["monitor"], "val_epsilon_mse")
 
     def test_unknown_head_fails_before_loading_data(self):
-        self.cfg.model.head = 'unknown'
-        with patch('mutation_prediction.model.train.get_v2_dataset') as load_data:
-            with self.assertRaisesRegex(ValueError, 'Unknown model.head.*Available heads'):
+        self.cfg.model.head = "unknown"
+        with patch("mutation_prediction.model.train.get_v2_dataset") as load_data:
+            with self.assertRaisesRegex(
+                ValueError, "Unknown model.head.*Available heads"
+            ):
                 train(self.cfg)
         load_data.assert_not_called()
 
     def test_training_saves_checkpoint_with_correct_validation_mse(self):
-        self.assertEqual(self.cfg.model.head, 'pooled_attention')
-        self.cfg.model.head = 'registered_attention'
+        self.assertEqual(self.cfg.model.head, "pooled_attention")
+        self.cfg.model.head = "registered_attention"
         head_constructor = Mock(wraps=PooledAttentionHead)
-        with patch.dict(HEADS, registered_attention=head_constructor), patch(
-            'mutation_prediction.model.feature_extraction.get_protein_mpnn',
-            side_effect=lambda cfg: TinyEncoder(),
+        with (
+            patch.dict(HEADS, registered_attention=head_constructor),
+            patch(
+                "mutation_prediction.model.feature_extraction.get_protein_mpnn",
+                side_effect=lambda cfg: TinyEncoder(),
+            ),
         ):
             trainer = train(self.cfg)
         head_constructor.assert_called_once_with(input_dim=24)
         self.assertEqual(trainer.global_step, 1)
         self.assertTrue(Path(trainer.checkpoint_callback.best_model_path).is_file())
-        self.assertTrue((self.root / 'checkpoints/last.ckpt').is_file())
-        self.assertEqual(trainer.checkpoint_callback.monitor, 'val_epsilon_mse')
-        self.assertEqual(trainer.checkpoint_callback.mode, 'min')
+        self.assertTrue((self.root / "checkpoints/last.ckpt").is_file())
+        self.assertEqual(trainer.checkpoint_callback.monitor, "val_epsilon_mse")
+        self.assertEqual(trainer.checkpoint_callback.mode, "min")
         # Validation's final batch has one sample. All three must contribute.
-        dataset = MegaScaleDatasetv2(self.cfg, 'val')
+        dataset = MegaScaleDatasetv2(self.cfg, "val")
         batch = tied_featurize_mut([dataset[i] for i in range(len(dataset))])
-        with torch.no_grad(), patch.object(trainer.lightning_module, 'log'):
+        with torch.no_grad(), patch.object(trainer.lightning_module, "log"):
             expected = trainer.lightning_module.validation_step(batch, 0)
-        torch.testing.assert_close(trainer.callback_metrics['val_epsilon_mse'], expected)
+        torch.testing.assert_close(
+            trainer.callback_metrics["val_epsilon_mse"], expected
+        )
         checkpoint_path = trainer.checkpoint_callback.best_model_path
         checkpoint = torch.load(checkpoint_path, weights_only=True)
-        self.assertEqual(checkpoint['hyper_parameters']['cfg']['data']['target_column'], 'epsilon_target')
+        self.assertEqual(
+            checkpoint["hyper_parameters"]["cfg"]["data"]["target_column"],
+            "epsilon_target",
+        )
         restored = MutationPredictionModelPL.load_from_checkpoint(
-            checkpoint_path, model=make_model(self.cfg), weights_only=True,
+            checkpoint_path,
+            model=make_model(self.cfg),
+            weights_only=True,
         )
         for name, value in trainer.lightning_module.state_dict().items():
             torch.testing.assert_close(restored.state_dict()[name], value)
 
-        self.cfg.training.ckpt = str(self.root / 'checkpoints/last.ckpt')
+        self.cfg.training.ckpt = str(self.root / "checkpoints/last.ckpt")
         self.cfg.training.epochs = 2
-        with patch.dict(HEADS, registered_attention=head_constructor), patch(
-            'mutation_prediction.model.feature_extraction.get_protein_mpnn',
-            side_effect=lambda cfg: TinyEncoder(),
+        with (
+            patch.dict(HEADS, registered_attention=head_constructor),
+            patch(
+                "mutation_prediction.model.feature_extraction.get_protein_mpnn",
+                side_effect=lambda cfg: TinyEncoder(),
+            ),
         ):
             resumed = train(self.cfg)
         self.assertEqual(resumed.global_step, 2)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

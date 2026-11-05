@@ -46,16 +46,28 @@ class ThermoMPNNInferenceTests(unittest.TestCase):
         # Construct a complete checkpoint offline; no network or pretrained
         # weights are required for unit tests.
         encoder = ProteinMPNN(
-            num_letters=21, node_features=128, edge_features=128, hidden_dim=128,
-            num_encoder_layers=3, num_decoder_layers=3, k_neighbors=48,
-            augment_eps=0, dropout=0,
+            num_letters=21,
+            node_features=128,
+            edge_features=128,
+            hidden_dim=128,
+            num_encoder_layers=3,
+            num_decoder_layers=3,
+            k_neighbors=48,
+            augment_eps=0,
+            dropout=0,
         )
         cls.reference = TransferModelv2(
             _single_mutant_config(), protein_encoder=encoder
         ).eval()
-        torch.save({"state_dict": {
-            f"model.{key}": value for key, value in cls.reference.state_dict().items()
-        }}, cls.checkpoint)
+        torch.save(
+            {
+                "state_dict": {
+                    f"model.{key}": value
+                    for key, value in cls.reference.state_dict().items()
+                }
+            },
+            cls.checkpoint,
+        )
         cls.predictor = ThermoMPNNPredictor(cls.checkpoint)
 
     @classmethod
@@ -72,7 +84,9 @@ class ThermoMPNNInferenceTests(unittest.TestCase):
         self.assertFalse(predictions.requires_grad)
         self.assertTrue(torch.isfinite(predictions).all())
         self.assertIs(protein["mutation"], annotation)
-        self.assertTrue(all(not p.requires_grad for p in self.predictor.model.parameters()))
+        self.assertTrue(
+            all(not p.requires_grad for p in self.predictor.model.parameters())
+        )
 
         for position, mutant in ((0, "W"), (2, "G")):
             with self.subTest(position=position, mutant=mutant):
@@ -81,11 +95,33 @@ class ThermoMPNNInferenceTests(unittest.TestCase):
                     [position], [protein["seq"][position]], [mutant], 0.0
                 )
                 batch = tied_featurize_mut([record])
-                X, S, mask, _, chain_M, chain_ids, residue_idx, pos, wt, mut, ddg, atom_mask = batch
+                (
+                    X,
+                    S,
+                    mask,
+                    _,
+                    chain_M,
+                    chain_ids,
+                    residue_idx,
+                    pos,
+                    wt,
+                    mut,
+                    ddg,
+                    atom_mask,
+                ) = batch
                 with torch.inference_mode():
                     expected, _ = self.reference(
-                        X, S, mask, chain_M, residue_idx, chain_ids,
-                        pos, wt, mut, ddg, atom_mask,
+                        X,
+                        S,
+                        mask,
+                        chain_M,
+                        residue_idx,
+                        chain_ids,
+                        pos,
+                        wt,
+                        mut,
+                        ddg,
+                        atom_mask,
                     )
                 torch.testing.assert_close(
                     predictions[position, ALPHABET.index(mutant)], expected[0, 0]
@@ -93,7 +129,9 @@ class ThermoMPNNInferenceTests(unittest.TestCase):
         torch.testing.assert_close(
             predictions[torch.arange(4), torch.tensor([0, 1, 2, 3])], torch.zeros(4)
         )
-        torch.testing.assert_close(self.predictor.predict(protein), predictions, rtol=0, atol=0)
+        torch.testing.assert_close(
+            self.predictor.predict(protein), predictions, rtol=0, atol=0
+        )
 
     def test_unknown_and_missing_backbone_rows_are_nan(self):
         protein = make_protein()
@@ -118,7 +156,9 @@ class ThermoMPNNInferenceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "single-mutant ThermoMPNN"):
             ThermoMPNNPredictor(path)
 
-    def test_pdb_output_includes_all_nonidentity_substitutions_and_sequence_indices(self):
+    def test_pdb_output_includes_all_nonidentity_substitutions_and_sequence_indices(
+        self,
+    ):
         path = Path(self.directory.name) / "numbered.pdb"
         coordinates = make_protein()["coords_chain_A"]
         lines = []

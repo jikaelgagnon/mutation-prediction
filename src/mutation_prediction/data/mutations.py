@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 # The 20 standard amino acids, plus "-" to represent a gap in an alignment.
-ALPHABET = 'ACDEFGHIKLMNPQRSTVWY-'
+ALPHABET = "ACDEFGHIKLMNPQRSTVWY-"
 
 
 @dataclass
@@ -21,10 +21,10 @@ class Mutation:
     ``wildtype[i]`` to ``mutation[i]``. Using lists lets one object describe
     both single and multiple mutations.
     """
-    position: list[int] # position in sequence
-    wildtype: list[str] # original AA
-    mutation: list[str] # mutated AA
+
+    position: list[int]  # position in sequence
+    wildtype: list[str]  # original AA
+    mutation: list[str]  # mutated AA
     # Optional measured stability change and the associated structure name.
     ddG: float | None = None
-    pdb: str | None = ''
-
+    pdb: str | None = ""

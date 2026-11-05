@@ -90,11 +90,19 @@ def _(MegaScaleDatasetv2, OmegaConf, Path, parse_cfg, repo_root):
     # Legacy ThermoMPNN-D settings are local to this exploration notebook.
     double_cfg = OmegaConf.merge(
         OmegaConf.load(repo_root / "configs/model_train_epistatic.yaml"),
-        {"model": {"hidden_dims": [128, 128], "subtract_mut": False,
-                   "single_target": True, "lightattn": True,
-                   "aggregation": "siamese", "alpha": 1.0,
-                   "beta": 1.0, "edges": True},
-         "training": {"output_dir": "checkpoints/thermompnn-epistatic"}},
+        {
+            "model": {
+                "hidden_dims": [128, 128],
+                "subtract_mut": False,
+                "single_target": True,
+                "lightattn": True,
+                "aggregation": "siamese",
+                "alpha": 1.0,
+                "beta": 1.0,
+                "edges": True,
+            },
+            "training": {"output_dir": "checkpoints/thermompnn-epistatic"},
+        },
     )
     cfg = parse_cfg(OmegaConf.merge(paths_cfg, double_cfg))
 
@@ -213,7 +221,7 @@ def _(sample, tied_featurize_mut):
 
 @app.cell
 def _(batch):
-    batch # tuple of length 12
+    batch  # tuple of length 12
 
 
 @app.cell
@@ -313,7 +321,7 @@ def _(mo):
 
 @app.cell
 def _(X):
-    X.shape # 1 x L x 4 x 3
+    X.shape  # 1 x L x 4 x 3
 
 
 @app.cell
@@ -323,7 +331,7 @@ def _(S):
 
 @app.cell
 def _(S):
-    alphabet = 'ACDEFGHIKLMNPQRSTVWYX'
+    alphabet = "ACDEFGHIKLMNPQRSTVWYX"
     sequence = "".join(alphabet[token] for token in S[0].tolist())
     sequence
     return alphabet, sequence
@@ -414,9 +422,7 @@ def _(
     torch,
 ):
     active_device = torch.device(device_picker.value)
-    encoder_cfg = OmegaConf.merge(
-        cfg, {"model": {"version": checkpoint_picker.value}}
-    )
+    encoder_cfg = OmegaConf.merge(cfg, {"model": {"version": checkpoint_picker.value}})
     protein_mpnn = get_protein_mpnn(encoder_cfg).to(active_device).eval()
 
     if any(parameter.requires_grad for parameter in protein_mpnn.parameters()):
@@ -469,9 +475,7 @@ def _(
     ) -> None:
         feature_capture["E"], feature_capture["E_idx"] = output
 
-    feature_hook = protein_mpnn.features.register_forward_hook(
-        capture_protein_features
-    )
+    feature_hook = protein_mpnn.features.register_forward_hook(capture_protein_features)
     # get outputs of the model
     try:
         with torch.inference_mode():
@@ -604,7 +608,9 @@ def _(
                 "wildtype_embedding_shape": str(tuple(wildtype_vector.shape)),
                 "mutant_embedding_shape": str(tuple(mutant_vector.shape)),
                 "structure_features_shape": str(tuple(structural_vector.shape)),
-                "WT_minus_mutant_embedding_shape": str(tuple(sequence_difference.shape)),
+                "WT_minus_mutant_embedding_shape": str(
+                    tuple(sequence_difference.shape)
+                ),
                 "pair_edge": edge_status,
                 "edge_features_shape": str(tuple(edge_vector.shape)),
                 "concatenated_site_features_shape": str(tuple(combined.shape)),

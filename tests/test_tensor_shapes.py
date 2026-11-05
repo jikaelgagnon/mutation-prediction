@@ -203,6 +203,7 @@ class TensorShapeTests(unittest.TestCase):
         for module in (model_utils, protein_mpnn_utils):
             self.check_call(module.loss_nll, sequence, log_probs, mask)
             self.check_call(module.loss_smoothed, sequence, log_probs, mask)
+
     def test_encoder_variants_and_side_chain_features(self):
         coordinates = torch.randn(2, 6, 4, 3)
         sequence = torch.randint(0, 21, (2, 6))

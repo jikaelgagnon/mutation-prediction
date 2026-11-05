@@ -33,21 +33,23 @@ ALPHABET = "ACDEFGHIKLMNPQRSTVWY"
 
 def _single_mutant_config():
     """Upstream examples/configs/single.yaml plus its inference defaults."""
-    return OmegaConf.create({
-        "model": {
-            "aggregation": None,
-            "hidden_dims": [64, 32],
-            "subtract_mut": True,
-            "mutant_embedding": False,
-            "single_target": False,
-            "num_final_layers": 2,
-            "lightattn": True,
-            "dist": False,
-            "edges": False,
-            "side_chain_module": False,
-            "dropout": None,
-        },
-    })
+    return OmegaConf.create(
+        {
+            "model": {
+                "aggregation": None,
+                "hidden_dims": [64, 32],
+                "subtract_mut": True,
+                "mutant_embedding": False,
+                "single_target": False,
+                "num_final_layers": 2,
+                "lightattn": True,
+                "dist": False,
+                "edges": False,
+                "side_chain_module": False,
+                "dropout": None,
+            },
+        }
+    )
 
 
 class ThermoMPNNPredictor:
@@ -107,15 +109,17 @@ class ThermoMPNNPredictor:
             "ACDEFGHIKLMNPQRSTVWYX"[token] for token in S[0].tolist()
         )
         if expected_sequence != protein["seq"].replace("-", "X"):
-            raise ValueError("The record's sequence must match its concatenated chain sequences")
+            raise ValueError(
+                "The record's sequence must match its concatenated chain sequences"
+            )
 
         self.model.eval()
         hidden, sequence_embed, _, _ = self.model.prot_mpnn(
             torch.nan_to_num(X, nan=0.0), S, mask, chain_M, residue_idx, chain_ids
         )
-        features = torch.cat([
-            *hidden[:self.model.cfg.model.num_final_layers], sequence_embed
-        ], dim=-1)[0]
+        features = torch.cat(
+            [*hidden[: self.model.cfg.model.num_final_layers], sequence_embed], dim=-1
+        )[0]
         features = self.model.light_attention(features.unsqueeze(-1))
         scores = self.model.ddg_out(features)  # [L, 21]
         wt_scores = scores.gather(1, S[0].unsqueeze(-1))
@@ -141,20 +145,33 @@ class ThermoMPNNPredictor:
         for position, wildtype in enumerate(protein["seq"]):
             for aa_index, mutant in enumerate(ALPHABET):
                 value = predictions[position, aa_index].item()
-                if wildtype == mutant or not torch.isfinite(predictions[position, aa_index]):
+                if wildtype == mutant or not torch.isfinite(
+                    predictions[position, aa_index]
+                ):
                     continue
-                rows.append({
-                    "protein": protein["name"],
-                    "chain": chain,
-                    "position": position,
-                    "wildtype": wildtype,
-                    "mutant": mutant,
-                    "mutation": f"{wildtype}{position + 1}{mutant}",
-                    "ddg": value,
-                })
-        return pd.DataFrame(rows, columns=[
-            "protein", "chain", "position", "wildtype", "mutant", "mutation", "ddg"
-        ])
+                rows.append(
+                    {
+                        "protein": protein["name"],
+                        "chain": chain,
+                        "position": position,
+                        "wildtype": wildtype,
+                        "mutant": mutant,
+                        "mutation": f"{wildtype}{position + 1}{mutant}",
+                        "ddg": value,
+                    }
+                )
+        return pd.DataFrame(
+            rows,
+            columns=[
+                "protein",
+                "chain",
+                "position",
+                "wildtype",
+                "mutant",
+                "mutation",
+                "ddg",
+            ],
+        )
 
 
 def main():

@@ -36,23 +36,30 @@ class PrecomputeMegaScaleTests(unittest.TestCase):
             (self.pdb_dir / f"{name}.pdb").write_text("fixture\n")
         self.parser = patch(
             "mutation_prediction.prepare_targets.parse_PDB",
-            side_effect=lambda path, **kwargs: [{"name": Path(path).stem, "seq": "ACDE"}],
+            side_effect=lambda path, **kwargs: [
+                {"name": Path(path).stem, "seq": "ACDE"}
+            ],
         )
         self.parser.start()
         self.addCleanup(self.parser.stop)
         self.predictor = StubPredictor()
-        self.frame = pd.DataFrame({
-            "WT_name": ["first.pdb", "second.pdb", "first.pdb"],
-            "mut_type": ["A1V:D3G", "C2A:E4Y", "D3G:A1V"],
-            "aa_seq": ["VCGE", "AADY", "VCGE"],
-            "ddG_ML": [2.5, -0.7, 2.5],
-            "split": ["train", "val", "train"],
-        }, index=[9, 2, 15])
+        self.frame = pd.DataFrame(
+            {
+                "WT_name": ["first.pdb", "second.pdb", "first.pdb"],
+                "mut_type": ["A1V:D3G", "C2A:E4Y", "D3G:A1V"],
+                "aa_seq": ["VCGE", "AADY", "VCGE"],
+                "ddG_ML": [2.5, -0.7, 2.5],
+                "split": ["train", "val", "train"],
+            },
+            index=[9, 2, 15],
+        )
 
     def run_export(self, frame=None):
         return precompute_single_effects(
             self.frame if frame is None else frame,
-            self.predictor, self.pdb_dir, progress=False,
+            self.predictor,
+            self.pdb_dir,
+            progress=False,
         )
 
     def test_predictions_reuse_wt_passes_and_preserve_pair_order_and_targets(self):
@@ -96,7 +103,9 @@ class PrecomputeMegaScaleTests(unittest.TestCase):
         table = torch.zeros(4, 20)
         table[0, 17] = torch.nan
         with patch.object(self.predictor, "predict", return_value=table):
-            with self.assertRaisesRegex(ValueError, "Nonfinite prediction for first.pdb, A1V"):
+            with self.assertRaisesRegex(
+                ValueError, "Nonfinite prediction for first.pdb, A1V"
+            ):
                 self.run_export()
 
     def test_missing_columns_empty_input_and_previous_exports_are_rejected(self):
@@ -106,18 +115,23 @@ class PrecomputeMegaScaleTests(unittest.TestCase):
             self.frame.assign(pred_ddg_1=0.0),
             self.frame.assign(aa_seq=None),
         ):
-            with self.subTest(columns=frame.columns.tolist()), self.assertRaises(ValueError):
+            with (
+                self.subTest(columns=frame.columns.tolist()),
+                self.assertRaises(ValueError),
+            ):
                 self.run_export(frame)
 
     def test_epsilon_labels_use_model_baseline_and_preserve_experimental_signs(self):
-        frame = pd.DataFrame({
-            "ddG_ML": [1.5, -1.5, 0.0],
-            "pred_ddg_1": [0.4, -0.4, 0.2],
-            "pred_ddg_2": [0.6, -0.6, -0.2],
-            "baseline_ddg": [1.0, -1.0, 0.0],
-            # Experimental epistasis must not be substituted for model residuals.
-            "ddG_ML_epi_term": [9.0, 8.0, 7.0],
-        })
+        frame = pd.DataFrame(
+            {
+                "ddG_ML": [1.5, -1.5, 0.0],
+                "pred_ddg_1": [0.4, -0.4, 0.2],
+                "pred_ddg_2": [0.6, -0.6, -0.2],
+                "baseline_ddg": [1.0, -1.0, 0.0],
+                # Experimental epistasis must not be substituted for model residuals.
+                "ddG_ML_epi_term": [9.0, 8.0, 7.0],
+            }
+        )
         result = add_epsilon_targets(frame)
         self.assertEqual(result.true_ddg_12.tolist(), [1.5, -1.5, 0.0])
         self.assertEqual(result.epsilon_target.tolist(), [0.5, -0.5, 0.0])
@@ -125,14 +139,21 @@ class PrecomputeMegaScaleTests(unittest.TestCase):
         self.assertNotIn("epsilon_target", frame)
 
     def test_invalid_labels_and_inconsistent_baselines_are_rejected(self):
-        frame = pd.DataFrame({
-            "ddG_ML": [1.5], "pred_ddg_1": [0.4],
-            "pred_ddg_2": [0.6], "baseline_ddg": [1.0],
-        })
+        frame = pd.DataFrame(
+            {
+                "ddG_ML": [1.5],
+                "pred_ddg_1": [0.4],
+                "pred_ddg_2": [0.6],
+                "baseline_ddg": [1.0],
+            }
+        )
         for invalid in (
-            frame.drop(columns="ddG_ML"), frame.assign(ddG_ML=float("nan")),
-            frame.assign(ddG_ML="-"), frame.assign(baseline_ddg=5.0),
-            frame.assign(pred_ddg_1=float("inf")), frame.iloc[:0],
+            frame.drop(columns="ddG_ML"),
+            frame.assign(ddG_ML=float("nan")),
+            frame.assign(ddG_ML="-"),
+            frame.assign(baseline_ddg=5.0),
+            frame.assign(pred_ddg_1=float("inf")),
+            frame.iloc[:0],
         ):
             with self.subTest(values=invalid.to_dict()), self.assertRaises(ValueError):
                 add_epsilon_targets(invalid)
@@ -142,14 +163,29 @@ class PrecomputeMegaScaleTests(unittest.TestCase):
         predictions = self.pdb_dir / "predictions.csv"
         output = self.pdb_dir / "epsilon.csv"
         frame.to_csv(predictions, index=False)
-        predictions.with_suffix(".metadata.json").write_text(json.dumps({
-            "created_at_utc": "2026-11-04T00:00:00+00:00",
-            "prediction_sign": "positive = destabilizing",
-            "checkpoint": {"sha256": "original-checkpoint-hash"},
-        }))
+        predictions.with_suffix(".metadata.json").write_text(
+            json.dumps(
+                {
+                    "created_at_utc": "2026-11-04T00:00:00+00:00",
+                    "prediction_sign": "positive = destabilizing",
+                    "checkpoint": {"sha256": "original-checkpoint-hash"},
+                }
+            )
+        )
         with (
-            patch("sys.argv", ["precompute", "--predictions-csv", str(predictions), "--output", str(output)]),
-            patch("mutation_prediction.prepare_targets.ThermoMPNNPredictor") as predictor,
+            patch(
+                "sys.argv",
+                [
+                    "precompute",
+                    "--predictions-csv",
+                    str(predictions),
+                    "--output",
+                    str(output),
+                ],
+            ),
+            patch(
+                "mutation_prediction.prepare_targets.ThermoMPNNPredictor"
+            ) as predictor,
             patch("builtins.print"),
         ):
             main()
@@ -159,7 +195,9 @@ class PrecomputeMegaScaleTests(unittest.TestCase):
         metadata = json.loads(output.with_suffix(".metadata.json").read_text())
         self.assertEqual(metadata["checkpoint"]["sha256"], "original-checkpoint-hash")
         self.assertEqual(metadata["training_target"], "epsilon_target")
-        self.assertEqual(metadata["prediction_created_at_utc"], "2026-11-04T00:00:00+00:00")
+        self.assertEqual(
+            metadata["prediction_created_at_utc"], "2026-11-04T00:00:00+00:00"
+        )
 
 
 if __name__ == "__main__":

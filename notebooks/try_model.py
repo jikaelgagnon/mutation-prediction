@@ -79,7 +79,9 @@ def _(cfg):
 @app.cell
 def _(Path, cfg, repo_root):
     if not Path(cfg.data_loc.megascale_csv).is_file():
-        raise FileNotFoundError(f"MegaScale CSV not found: {cfg.data_loc.megascale_csv}")
+        raise FileNotFoundError(
+            f"MegaScale CSV not found: {cfg.data_loc.megascale_csv}"
+        )
     if not Path(cfg.data_loc.megascale_splits).is_file():
         raise FileNotFoundError(
             f"MegaScale splits not found: {cfg.data_loc.megascale_splits}"
@@ -109,7 +111,9 @@ def _(MegaScaleDatasetv2, cfg):
     train_dataset = MegaScaleDatasetv2(cfg, split="train")
     val_dataset = MegaScaleDatasetv2(cfg, split="val")
     if not len(train_dataset) or not len(val_dataset):
-        raise ValueError("MegaScale train and validation splits must both be non-empty.")
+        raise ValueError(
+            "MegaScale train and validation splits must both be non-empty."
+        )
     return train_dataset, val_dataset
 
 
@@ -184,7 +188,8 @@ def _(mo):
 
 @app.cell
 def _(single_batch):
-    (X,
+    (
+        X,
         S,
         mask,
         lengths,
@@ -196,7 +201,7 @@ def _(single_batch):
         mut_mutant_AAs,
         mut_ddGs,
         atom_mask,
-        ) = single_batch
+    ) = single_batch
     return (
         S,
         X,
@@ -238,7 +243,7 @@ def _(
         mut_mutant_AAs,
         mut_ddGs,
         atom_mask,
-        )
+    )
     return (model_inputs,)
 
 
@@ -272,7 +277,13 @@ def _():
 
 
 @app.cell
-def _(MutationPredictionModel, PooledAttentionHead, ProteinMPNNFeatureExtractor, cfg, device):
+def _(
+    MutationPredictionModel,
+    PooledAttentionHead,
+    ProteinMPNNFeatureExtractor,
+    cfg,
+    device,
+):
     feature_extractor = ProteinMPNNFeatureExtractor(cfg)
     prediction_head = PooledAttentionHead(input_dim=feature_extractor.output_dim)
     model = MutationPredictionModel(feature_extractor, prediction_head).to(device)

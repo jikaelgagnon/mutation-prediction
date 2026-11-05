@@ -116,7 +116,7 @@ class ProteinMPNNFeatureExtractor(nn.Module):
             raise ValueError("num_final_layers exceeds the encoder's decoder layers")
 
         # ProteinMPNN returns its decoder states last layer first.
-        hidden = torch.cat(hidden_states[:self.num_final_layers], dim=-1)
+        hidden = torch.cat(hidden_states[: self.num_final_layers], dim=-1)
         positions = mut_positions.unsqueeze(-1)
         struct_embed = hidden.gather(1, positions.expand(-1, -1, hidden.shape[-1]))
         seq_embed = wt_embed.gather(1, positions.expand(-1, -1, wt_embed.shape[-1]))

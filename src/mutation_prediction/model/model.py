@@ -74,7 +74,7 @@ class MutationPredictionModel(nn.Module):
         Returns:
             Predicted ΔΔG or epsilon, shaped [B, 1].
         """
-        
+
         final_embed = self.feature_extractor(
             X,
             S,
@@ -98,6 +98,7 @@ class MutationPredictionModelPL(pl.LightningModule):
     Supply the composed model again when loading this generic wrapper from a
     checkpoint; only cfg is saved as a hyperparameter.
     """
+
     def __init__(
         self,
         cfg,
@@ -108,16 +109,16 @@ class MutationPredictionModelPL(pl.LightningModule):
             cfg = OmegaConf.create(cfg)
         self.model = model
         self.cfg = cfg
-        self.save_hyperparameters({'cfg': OmegaConf.to_container(cfg, resolve=True)})
+        self.save_hyperparameters({"cfg": OmegaConf.to_container(cfg, resolve=True)})
         self.dev = torch.device("cuda:0" if (torch.cuda.is_available()) else "cpu")
-        self.out = [cfg.model.get('target_name', 'ddG')]
+        self.out = [cfg.model.get("target_name", "ddG")]
         self.metrics = nn.ModuleDict()
-        
+
         # Separate metric instances prevent train/validation/test state mixing.
         # Logging Metric objects lets Lightning manage epoch computation/reset.
         for split in ("train_metrics", "val_metrics", "test_metrics"):
             self.metrics[split] = nn.ModuleDict()
-            
+
             for out in self.out:
                 self.metrics[split][out] = nn.ModuleDict()
                 for name, metric in get_metrics().items():
@@ -164,11 +165,35 @@ class MutationPredictionModelPL(pl.LightningModule):
         """Run the common prediction/loss/logging path for each dataset split."""
         # Keep the 12-field tuple order produced by tied_featurize_mut. lengths
         # is unpacked for that interface but is not consumed by the model.
-        
-        X, S, mask, lengths, chain_M, chain_encoding_all, residue_idx, mut_positions, mut_wildtype_AAs, mut_mutant_AAs, targets, atom_mask = batch
 
+        (
+            X,
+            S,
+            mask,
+            lengths,
+            chain_M,
+            chain_encoding_all,
+            residue_idx,
+            mut_positions,
+            mut_wildtype_AAs,
+            mut_mutant_AAs,
+            targets,
+            atom_mask,
+        ) = batch
 
-        predictions = self(X, S, mask, chain_M, residue_idx, chain_encoding_all, mut_positions, mut_wildtype_AAs, mut_mutant_AAs, targets, atom_mask)
+        predictions = self(
+            X,
+            S,
+            mask,
+            chain_M,
+            residue_idx,
+            chain_encoding_all,
+            mut_positions,
+            mut_wildtype_AAs,
+            mut_mutant_AAs,
+            targets,
+            atom_mask,
+        )
 
         # The target slot holds either measured ΔΔG or cached epsilon, both [B, 1].
         mse = F.mse_loss(predictions, targets)
@@ -180,9 +205,15 @@ class MutationPredictionModelPL(pl.LightningModule):
                 # Record epoch metrics and display them in the progress bar.
                 # self.log exposes the target's MSE to callbacks and the scheduler.
                 # Docs: https://github.com/Lightning-AI/pytorch-lightning/blob/master/docs/source-pytorch/common/lightning_module.rst#train-epoch-level-metrics
-                self.log(f"{prefix}_{out}_{name}", metric, prog_bar=True, on_step=False, on_epoch=True,
-                            batch_size=targets.shape[0])
-            
+                self.log(
+                    f"{prefix}_{out}_{name}",
+                    metric,
+                    prog_bar=True,
+                    on_step=False,
+                    on_epoch=True,
+                    batch_size=targets.shape[0],
+                )
+
         return mse
 
     # Trainer calls this for each training batch. Returning the loss enables
@@ -190,7 +221,7 @@ class MutationPredictionModelPL(pl.LightningModule):
     def training_step(
         self, batch: MutationBatch, batch_idx: int
     ) -> Float[Tensor, ""] | None:
-        return self.shared_eval(batch, batch_idx, 'train')
+        return self.shared_eval(batch, batch_idx, "train")
 
     # Trainer runs validation in evaluation mode with gradients disabled.
     # This measures performance without updating model weights.
@@ -198,12 +229,14 @@ class MutationPredictionModelPL(pl.LightningModule):
     def validation_step(
         self, batch: MutationBatch, batch_idx: int
     ) -> Float[Tensor, ""] | None:
-        return self.shared_eval(batch, batch_idx, 'val')
+        return self.shared_eval(batch, batch_idx, "val")
 
     # Called by Trainer.test(), rather than the Trainer.fit() used in train.py.
     # Docs: https://github.com/Lightning-AI/pytorch-lightning/blob/master/docs/source-pytorch/common/lightning_module.rst#test-loop
-    def test_step(self, batch: MutationBatch, batch_idx: int) -> Float[Tensor, ""] | None:
-        return self.shared_eval(batch, batch_idx, 'test')
+    def test_step(
+        self, batch: MutationBatch, batch_idx: int
+    ) -> Float[Tensor, ""] | None:
+        return self.shared_eval(batch, batch_idx, "test")
 
     # Trainer calls this hook to obtain the optimizer and optional scheduler.
     # See the configure_optimizers docstring for return formats and scheduler monitoring:
@@ -218,7 +251,7 @@ class MutationPredictionModelPL(pl.LightningModule):
         ]
         if feature_params:
             feature_lr = (
-                self.cfg.training.get('mpnn_learn_rate') or self.cfg.training.learn_rate
+                self.cfg.training.get("mpnn_learn_rate") or self.cfg.training.learn_rate
             )
             param_list.append({"params": feature_params, "lr": feature_lr})
         head_params = [
@@ -232,12 +265,14 @@ class MutationPredictionModelPL(pl.LightningModule):
             # Halve the learning rate when validation MSE stops improving.
             # Lightning steps the scheduler using the logged metric named by
             # monitor below; that name must match the target's validation log.
-            lr_sched = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=opt, mode='min', factor=0.5)
-            print('Enabled LR Schedule!')
+            lr_sched = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer=opt, mode="min", factor=0.5
+            )
+            print("Enabled LR Schedule!")
             return {
-                'optimizer': opt,
-                'lr_scheduler': lr_sched,
-                'monitor': f'val_{self.out[0]}_mse'
+                "optimizer": opt,
+                "lr_scheduler": lr_sched,
+                "monitor": f"val_{self.out[0]}_mse",
             }
         else:
             return opt

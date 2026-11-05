@@ -31,19 +31,21 @@ class StubProteinEncoder(nn.Module):
 
 
 def make_config(**model_options):
-    return OmegaConf.create({
-        "model": {
-            "num_final_layers": 2,
-            "mutant_embedding": True,
-            "freeze_weights": False,
-            **model_options,
-        },
-        "training": {
-            "learn_rate": 0.001,
-            "mpnn_learn_rate": 0.0001,
-            "lr_schedule": False,
-        },
-    })
+    return OmegaConf.create(
+        {
+            "model": {
+                "num_final_layers": 2,
+                "mutant_embedding": True,
+                "freeze_weights": False,
+                **model_options,
+            },
+            "training": {
+                "learn_rate": 0.001,
+                "mpnn_learn_rate": 0.0001,
+                "lr_schedule": False,
+            },
+        }
+    )
 
 
 def make_inputs(batch_size=2, mutations=2):
@@ -72,8 +74,10 @@ class MutationPredictionModelTests(unittest.TestCase):
                 for subtract in (False, True):
                     for layers in (1, 2):
                         with self.subTest(
-                            batch=batch_size, mutations=mutations,
-                            subtract=subtract, layers=layers,
+                            batch=batch_size,
+                            mutations=mutations,
+                            subtract=subtract,
+                            layers=layers,
                         ):
                             encoder = StubProteinEncoder()
                             features = ProteinMPNNFeatureExtractor(
@@ -95,9 +99,10 @@ class MutationPredictionModelTests(unittest.TestCase):
                                 sequence = sequence - encoder.W_s(mutant)
                             expected = torch.cat([*structural, sequence], dim=-1)
                             torch.testing.assert_close(output, expected)
-                            self.assertEqual(output.shape, (
-                                batch_size, mutations, features.output_dim
-                            ))
+                            self.assertEqual(
+                                output.shape,
+                                (batch_size, mutations, features.output_dim),
+                            )
                             self.assertEqual(encoder.calls, 1)
 
     def test_extractor_sanitizes_inputs_without_changing_callers_tensors(self):
@@ -131,7 +136,9 @@ class MutationPredictionModelTests(unittest.TestCase):
         features = ProteinMPNNFeatureExtractor(
             make_config(), protein_encoder=StubProteinEncoder()
         )
-        model = MutationPredictionModel(features, PooledAttentionHead(features.output_dim))
+        model = MutationPredictionModel(
+            features, PooledAttentionHead(features.output_dim)
+        )
         inputs = make_inputs()
         self.assertIsInstance(model.feature_extractor, ProteinMPNNFeatureExtractor)
         self.assertIsInstance(model.prediction_head, PooledAttentionHead)
@@ -191,16 +198,19 @@ class MutationPredictionModelTests(unittest.TestCase):
         head = nn.Sequential(nn.Flatten(start_dim=1), nn.Linear(6, 1))
         model = MutationPredictionModel(features, head)
         # Custom extractors control freezing through requires_grad themselves.
-        module = MutationPredictionModelPL(make_config(freeze_weights=True), model=model)
+        module = MutationPredictionModelPL(
+            make_config(freeze_weights=True), model=model
+        )
         inputs = make_inputs()
         prediction = module(*inputs)
         torch.testing.assert_close(prediction, head(features(*inputs[:9])))
         prediction.sum().backward()
         self.assertIsNotNone(features.features.grad)
         optimizer = module.configure_optimizers()
-        self.assertIn(id(features.features), {
-            id(p) for group in optimizer.param_groups for p in group["params"]
-        })
+        self.assertIn(
+            id(features.features),
+            {id(p) for group in optimizer.param_groups for p in group["params"]},
+        )
 
 
 if __name__ == "__main__":

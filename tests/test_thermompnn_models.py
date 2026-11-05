@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import unittest
@@ -102,10 +101,6 @@ class ThermoMPNNModelTests(unittest.TestCase):
         predictions.mean().backward()
         self.assertIsNotNone(head.weight.grad)
         self.assertIsNotNone(self.encoder.sequence_embedding.weight.grad)
-
-
-
-
 
 
 if __name__ == "__main__":

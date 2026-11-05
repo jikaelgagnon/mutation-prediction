@@ -43,5 +43,5 @@ def main():
     print(f"MegaScale data: {get_megascale()}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
