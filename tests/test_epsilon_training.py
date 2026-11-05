@@ -12,6 +12,10 @@ import torch
 from omegaconf import OmegaConf
 from torch import nn
 
+from mutation_prediction.data.megascale import (
+    MegaScaleDatasetv2,
+    tied_featurize_mut,
+)
 from mutation_prediction.model import (
     MutationPredictionModel,
     MutationPredictionModelPL,
@@ -19,10 +23,6 @@ from mutation_prediction.model import (
     ProteinMPNNFeatureExtractor,
 )
 from mutation_prediction.model.train import HEADS, parse_cfg, train
-from mutation_prediction.data.megascale import (
-    MegaScaleDatasetv2,
-    tied_featurize_mut,
-)
 
 
 class TinyEncoder(nn.Module):

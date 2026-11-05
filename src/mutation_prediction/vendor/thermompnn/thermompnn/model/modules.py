@@ -300,10 +300,10 @@ class SideChainProteinFeatures(nn.Module):
             ], device=X.device) # [21, 14]
             
             def batched_index_select(
-                input: Shaped[Tensor, "batch *features"],
+                input: Shaped[Tensor, batch *features],
                 dim: int,
                 index: Int[Tensor, "batch selected"],
-            ) -> Shaped[Tensor, "batch *selected_features"]:
+            ) -> Shaped[Tensor, batch *selected_features]:
                 for ii in range(1, len(input.shape)):
                     if ii != dim:
                         index = index.unsqueeze(ii)

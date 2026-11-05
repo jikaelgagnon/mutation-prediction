@@ -6,12 +6,12 @@ from typing import Any
 import numpy as np
 import torch
 
+from mutation_prediction.data.mutations import (
+    ALPHABET,
+)
 from mutation_prediction.tensor_types import (
     MutationBatch,
     ProteinRecord,
-)
-from mutation_prediction.data.mutations import (
-    ALPHABET,
 )
 
 

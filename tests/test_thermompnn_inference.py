@@ -7,16 +7,20 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from mutation_prediction.data.mutations import Mutation
 from mutation_prediction.data.collate import (
     tied_featurize_mut,
 )
-from mutation_prediction.vendor.thermompnn.thermompnn.model.v2_model import TransferModelv2
-from mutation_prediction.vendor.thermompnn.thermompnn.protein_mpnn_utils import ProteinMPNN
+from mutation_prediction.data.mutations import Mutation
 from mutation_prediction.thermompnn import (
     ALPHABET,
     ThermoMPNNPredictor,
     _single_mutant_config,
+)
+from mutation_prediction.vendor.thermompnn.thermompnn.model.v2_model import (
+    TransferModelv2,
+)
+from mutation_prediction.vendor.thermompnn.thermompnn.protein_mpnn_utils import (
+    ProteinMPNN,
 )
 
 

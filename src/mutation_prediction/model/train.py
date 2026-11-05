@@ -9,14 +9,16 @@ from omegaconf import OmegaConf
 from pytorch_lightning.callbacks import ModelCheckpoint
 from torch.utils.data import DataLoader
 
-from mutation_prediction.model.feature_extraction import ProteinMPNNFeatureExtractor
-from mutation_prediction.model.heads import PooledAttentionHead
-from mutation_prediction.model.model import MutationPredictionModel, MutationPredictionModelPL
 from mutation_prediction.data.collate import (
     tied_featurize_mut,
 )
 from mutation_prediction.data.splits import get_v2_dataset
-
+from mutation_prediction.model.feature_extraction import ProteinMPNNFeatureExtractor
+from mutation_prediction.model.heads import PooledAttentionHead
+from mutation_prediction.model.model import (
+    MutationPredictionModel,
+    MutationPredictionModelPL,
+)
 
 HEADS = {
     "pooled_attention": PooledAttentionHead,

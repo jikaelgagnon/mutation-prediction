@@ -24,10 +24,10 @@ from mutation_prediction.vendor.thermompnn.thermompnn.model.side_chain_model imp
 
 
 def batched_index_select(
-    input: Shaped[Tensor, "batch *features"],
+    input: Shaped[Tensor, batch *features],
     dim: int,
     index: Int[Tensor, "batch selected"],
-) -> Shaped[Tensor, "batch *selected_features"]:
+) -> Shaped[Tensor, batch *selected_features]:
     """Replace axis dim with selected indices; preserve every other input axis."""
     for ii in range(1, len(input.shape)):
         if ii != dim:

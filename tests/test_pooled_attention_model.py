@@ -8,8 +8,8 @@ from torch import nn
 
 from mutation_prediction.model import (
     MutationPredictionModel,
-    PooledAttentionHead,
     MutationPredictionModelPL,
+    PooledAttentionHead,
     ProteinMPNNFeatureExtractor,
 )
 

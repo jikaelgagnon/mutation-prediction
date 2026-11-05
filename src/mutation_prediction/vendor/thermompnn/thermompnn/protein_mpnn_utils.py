@@ -36,7 +36,7 @@ def _scores(
     S: Int[Tensor, "batch length"],
     log_probs: Float[Tensor, "batch length vocab"],
     mask: Real[Tensor, "batch length"],
-) -> Float[Tensor, "batch"]:
+) -> Float[Tensor, batch]:
     """ Negative log probabilities """
     criterion = torch.nn.NLLLoss(reduction='none')
     loss = criterion(
@@ -47,7 +47,7 @@ def _scores(
     return scores
 
 
-def _S_to_seq(S: Int[Tensor, "length"], mask: Real[Tensor, "length"]) -> str:
+def _S_to_seq(S: Int[Tensor, length], mask: Real[Tensor, length]) -> str:
     alphabet = 'ACDEFGHIKLMNPQRSTVWYX'
     seq = ''.join([alphabet[c] for c, m in zip(S.tolist(), mask.tolist()) if m > 0])
     return seq
@@ -99,7 +99,7 @@ def parse_PDB_biounits(
         return [[aa_1_N.get(a, states - 1) for a in y] for y in x]
 
     def N_to_AA(
-        x: Int[np.ndarray, "length"]
+        x: Int[np.ndarray, length]
         | Int[np.ndarray, "batch length"]
         | list[int]
         | list[list[int]],
@@ -260,7 +260,7 @@ def alt_parse_PDB_biounits(
         return [[aa_1_N.get(a, states - 1) for a in y] for y in x]
 
     def N_to_AA(
-        x: Int[np.ndarray, "length"]
+        x: Int[np.ndarray, length]
         | Int[np.ndarray, "batch length"]
         | list[int]
         | list[list[int]],
@@ -1518,8 +1518,8 @@ class ProteinMPNN(nn.Module):
         residue_idx: Int[Tensor, "batch length"],
         mask: Real[Tensor, "batch length"] | None = None,
         temperature: float = 1.0,
-        omit_AAs_np: Real[np.ndarray, "21"] | None = None,
-        bias_AAs_np: Float[np.ndarray, "21"] | None = None,
+        omit_AAs_np: Real[np.ndarray, 21] | None = None,
+        bias_AAs_np: Float[np.ndarray, 21] | None = None,
         chain_M_pos: Real[Tensor, "batch length"] | None = None,
         omit_AA_mask: Real[Tensor, "batch length 21"] | None = None,
         pssm_coef: Float[Tensor, "batch length"] | None = None,
@@ -1642,8 +1642,8 @@ class ProteinMPNN(nn.Module):
         residue_idx: Int[Tensor, "batch length"],
         mask: Real[Tensor, "batch length"] | None = None,
         temperature: float = 1.0,
-        omit_AAs_np: Real[np.ndarray, "21"] | None = None,
-        bias_AAs_np: Float[np.ndarray, "21"] | None = None,
+        omit_AAs_np: Real[np.ndarray, 21] | None = None,
+        bias_AAs_np: Float[np.ndarray, 21] | None = None,
         chain_M_pos: Real[Tensor, "batch length"] | None = None,
         omit_AA_mask: Real[Tensor, "batch length 21"] | None = None,
         pssm_coef: Float[Tensor, "batch length"] | None = None,
@@ -1653,7 +1653,7 @@ class ProteinMPNN(nn.Module):
         pssm_log_odds_mask: Real[Tensor, "batch length 21"] | None = None,
         pssm_bias_flag: bool | None = None,
         tied_pos: list[list[int]] | None = None,
-        tied_beta: Float[Tensor, "length"] | None = None,
+        tied_beta: Float[Tensor, length] | None = None,
         bias_by_res: Float[Tensor, "batch length 21"] | None = None,
     ) -> SamplingOutput:
         device = X.device

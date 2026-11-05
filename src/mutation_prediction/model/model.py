@@ -9,10 +9,10 @@ from jaxtyping import Float, Int, Real
 from omegaconf import OmegaConf
 from torch import Tensor, nn
 
-from mutation_prediction.tensor_types import MutationBatch
 from mutation_prediction.model.metrics import (
     get_metrics,
 )
+from mutation_prediction.tensor_types import MutationBatch
 
 
 class MutationPredictionModel(nn.Module):

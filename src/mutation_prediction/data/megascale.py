@@ -10,11 +10,11 @@ import pandas as pd
 import torch
 from tqdm import tqdm
 
-from mutation_prediction.tensor_types import (
-    ProteinRecord,
-)
 from mutation_prediction.data.mutations import (
     Mutation,
+)
+from mutation_prediction.tensor_types import (
+    ProteinRecord,
 )
 from mutation_prediction.vendor.thermompnn.thermompnn.protein_mpnn_utils import (
     parse_PDB,
@@ -122,4 +122,3 @@ class MegaScaleDatasetv2(torch.utils.data.Dataset):
         return record
 
 # Compatibility for existing dataset consumers.
-from mutation_prediction.data.collate import tied_featurize_mut

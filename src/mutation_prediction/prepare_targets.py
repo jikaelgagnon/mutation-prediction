@@ -18,8 +18,10 @@ import pandas as pd
 import torch
 from tqdm import tqdm
 
-from mutation_prediction.vendor.thermompnn.thermompnn.protein_mpnn_utils import parse_PDB
 from mutation_prediction.thermompnn import ALPHABET, ThermoMPNNPredictor
+from mutation_prediction.vendor.thermompnn.thermompnn.protein_mpnn_utils import (
+    parse_PDB,
+)
 
 REPO_ROOT = Path.cwd()
 SUBSTITUTION = re.compile(r"([ACDEFGHIKLMNPQRSTVWY])([1-9][0-9]*)([ACDEFGHIKLMNPQRSTVWY])")

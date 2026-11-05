@@ -11,6 +11,10 @@ import torch
 from jaxtyping import jaxtyped
 from omegaconf import OmegaConf
 
+from mutation_prediction.data.collate import (
+    tied_featurize_mut,
+)
+from mutation_prediction.data.mutations import Mutation
 from mutation_prediction.model import (
     MutationPredictionModel,
     PooledAttentionHead,
@@ -18,10 +22,6 @@ from mutation_prediction.model import (
 )
 from mutation_prediction.vendor.thermompnn.proteinmpnn import model_utils, rigid_utils
 from mutation_prediction.vendor.thermompnn.thermompnn import protein_mpnn_utils
-from mutation_prediction.data.mutations import Mutation
-from mutation_prediction.data.collate import (
-    tied_featurize_mut,
-)
 from mutation_prediction.vendor.thermompnn.thermompnn.model import (
     modules,
     side_chain_model,

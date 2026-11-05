@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import unittest
-from types import SimpleNamespace
-from unittest.mock import patch
 
 import torch
 from jaxtyping import Float, Int, Real

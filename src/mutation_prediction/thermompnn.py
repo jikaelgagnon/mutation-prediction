@@ -15,12 +15,14 @@ from jaxtyping import Float
 from omegaconf import OmegaConf
 from torch import Tensor
 
-from mutation_prediction.tensor_types import ProteinRecord
-from mutation_prediction.data.mutations import Mutation
 from mutation_prediction.data.collate import (
     tied_featurize_mut,
 )
-from mutation_prediction.vendor.thermompnn.thermompnn.model.v2_model import TransferModelv2
+from mutation_prediction.data.mutations import Mutation
+from mutation_prediction.tensor_types import ProteinRecord
+from mutation_prediction.vendor.thermompnn.thermompnn.model.v2_model import (
+    TransferModelv2,
+)
 from mutation_prediction.vendor.thermompnn.thermompnn.protein_mpnn_utils import (
     ProteinMPNN,
     parse_PDB,

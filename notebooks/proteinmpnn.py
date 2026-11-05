@@ -62,11 +62,11 @@ def _():
         MegaScaleDatasetv2,
         tied_featurize_mut,
     )
-    from mutation_prediction.vendor.thermompnn.thermompnn.model.modules import (
-        get_protein_mpnn,
-    )
     from mutation_prediction.model.train import (
         parse_cfg,
+    )
+    from mutation_prediction.vendor.thermompnn.thermompnn.model.modules import (
+        get_protein_mpnn,
     )
 
     return (
