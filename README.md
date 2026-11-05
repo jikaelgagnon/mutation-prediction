@@ -48,6 +48,16 @@ uv sync
 uv run download-megascale
 ```
 
+Enable Ruff checks on commits by installing the pre-commit hook:
+
+```bash
+uv run pre-commit install
+```
+
+The hook applies Ruff's safe fixes and formatting to staged Python files, then
+stages any changes it makes. Remaining lint errors do not block the commit.
+To run it across the repository manually, use `uv run pre-commit run --all-files`.
+
 Data and checkpoints are gitignored. The download creates
 `data/raw/megascale/{csv,pdb,splits.pkl}`; no Rosetta structures are needed.
 A nonempty existing MegaScale directory is skipped, so remove an incomplete
