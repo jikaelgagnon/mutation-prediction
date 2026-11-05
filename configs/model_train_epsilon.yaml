@@ -1,30 +1,31 @@
-name: pooled_attention_epsilon
+project: mutation-prediction # W&B project name; null (or omit key) disables W&B.
+name: pooled_attention_epsilon # Any string; W&B run name and checkpoint filename prefix.
 
 data:
-  dataset: megascale
-  mut_types: [double]
-  splits: [train, val]
-  target_column: epsilon_target
+  dataset: megascale # Supported dataset: megascale.
+  mut_types: [double] # single, double, or both; epsilon_target requires [double].
+  splits: [train, val] # [training split, validation split]; each: train, val, or test.
+  target_column: epsilon_target # epsilon_target or ddG_ML; must exist in the CSV.
 
 data_loc:
-  megascale_csv: data/processed/thermompnn/Megascale-D-epsilon.csv
+  megascale_csv: data/processed/thermompnn/Megascale-D-epsilon.csv # CSV path; relative to the working directory or absolute.
 
 training:
-  seed: 42
-  num_workers: 4
-  output_dir: checkpoints/model-epsilon
-  learn_rate: 0.00001
-  epochs: 100
-  lr_schedule: true
-  batch_size: 256
-  shuffle: true
-  checkpoint_metric: mse
+  seed: 42 # Integer random seed for reproducibility.
+  num_workers: 4 # Nonnegative integer; 0 loads data in the main process.
+  output_dir: checkpoints/model-epsilon # Directory for checkpoints and resolved config.yaml.
+  learn_rate: 0.00001 # Positive float; AdamW learning rate.
+  epochs: 100 # Positive integer; maximum training epochs.
+  lr_schedule: true # true/false; reduce learning rate when validation MSE plateaus.
+  batch_size: 256 # Positive integer; samples per batch (reduce if GPU memory is limited).
+  shuffle: true # true/false; shuffle training data each epoch.
+  checkpoint_metric: mse # mse (minimize) or spearman (maximize) on the validation split.
 
 model:
-  head: pooled_attention
-  target_name: epsilon
-  mutant_embedding: true
-  num_final_layers: 2
-  freeze_weights: true
-  load_pretrained: true
-  proteinmpnn_dropout: 0.0
+  head: pooled_attention # Supported head: pooled_attention.
+  target_name: epsilon # Metric label, e.g. epsilon or ddG; does not select the target column.
+  mutant_embedding: true # true: WT minus mutant amino-acid embedding; false: WT embedding only.
+  num_final_layers: 2 # 1, 2, or 3; number of final ProteinMPNN decoder states to concatenate.
+  freeze_weights: true # true: freeze ProteinMPNN; false: fine-tune it with the head.
+  load_pretrained: true # true: load pretrained weights; false: random weights (checkpoint file still required).
+  proteinmpnn_dropout: 0.0 # Dropout probability from 0.0 to 1.0; 0.0 disables dropout.
