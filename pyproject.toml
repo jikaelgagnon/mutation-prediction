@@ -37,3 +37,8 @@ build-backend = "uv_build"
 
 [tool.ty.rules]
 invalid-method-override = "ignore"
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.7.0",
+]
