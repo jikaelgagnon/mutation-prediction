@@ -122,7 +122,7 @@ def precompute_single_effects(
         )
 
     result = frame.copy().reset_index(drop=True)
-    pairs = result.mut_type.str.split(":")
+    pairs = result.mut_type.str.split(":")  # pairs of mutations from megascale-d
     if not pairs.map(len).eq(2).all():
         raise ValueError("Input must contain only measured double-substitution pairs")
     result["mutation_1"] = pairs.str[0]
