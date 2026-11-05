@@ -25,7 +25,7 @@ from mutation_prediction.tensor_types import (
     SamplingOutput,
     TiedProteinBatch,
 )
-from mutation_prediction.vendor.thermompnn.proteinmpnn.model_utils import (
+from mutation_prediction.thermompnn_d_vendor.thermompnn.proteinmpnn.model_utils import (
     IPMPDecoder,
     IPMPEncoder,
 )

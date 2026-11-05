@@ -7,7 +7,7 @@ from jaxtyping import Float, Int, Real
 from omegaconf import OmegaConf
 from torch import Tensor, nn
 
-from mutation_prediction.vendor.thermompnn.thermompnn.model.v2_model import (
+from mutation_prediction.thermompnn_d_vendor.thermompnn.thermompnn.model.v2_model import (
     TransferModelv2,
 )
 

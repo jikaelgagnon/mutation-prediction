@@ -16,10 +16,10 @@ from mutation_prediction.thermompnn import (
     ThermoMPNNPredictor,
     _single_mutant_config,
 )
-from mutation_prediction.vendor.thermompnn.thermompnn.model.v2_model import (
+from mutation_prediction.thermompnn_d_vendor.thermompnn.thermompnn.model.v2_model import (
     TransferModelv2,
 )
-from mutation_prediction.vendor.thermompnn.thermompnn.protein_mpnn_utils import (
+from mutation_prediction.thermompnn_d_vendor.thermompnn.thermompnn.protein_mpnn_utils import (
     ProteinMPNN,
 )
 

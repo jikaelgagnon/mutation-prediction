@@ -19,7 +19,7 @@ import torch
 from tqdm import tqdm
 
 from mutation_prediction.thermompnn import ALPHABET, ThermoMPNNPredictor
-from mutation_prediction.vendor.thermompnn.thermompnn.protein_mpnn_utils import (
+from mutation_prediction.thermompnn_d_vendor.thermompnn.thermompnn.protein_mpnn_utils import (
     parse_PDB,
 )
 

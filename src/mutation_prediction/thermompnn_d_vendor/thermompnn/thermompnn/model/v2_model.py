@@ -13,12 +13,12 @@ import torch
 from jaxtyping import Float, Int, Real, Shaped
 from torch import Tensor, nn
 
-from mutation_prediction.vendor.thermompnn.thermompnn.model.modules import (
+from mutation_prediction.thermompnn_d_vendor.thermompnn.thermompnn.model.modules import (
     LightAttention,
     SideChainModule,
     get_protein_mpnn,
 )
-from mutation_prediction.vendor.thermompnn.thermompnn.model.side_chain_model import (
+from mutation_prediction.thermompnn_d_vendor.thermompnn.thermompnn.model.side_chain_model import (
     get_protein_mpnn_sca,
 )
 

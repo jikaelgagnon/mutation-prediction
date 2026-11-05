@@ -15,7 +15,7 @@ import torch.nn.functional as F
 from jaxtyping import Float, Int, Real, Shaped
 from torch import Tensor, nn
 
-from mutation_prediction.vendor.thermompnn.thermompnn.protein_mpnn_utils import (
+from mutation_prediction.thermompnn_d_vendor.thermompnn.thermompnn.protein_mpnn_utils import (
     ProteinMPNN,
     gather_edges,
     gather_nodes,

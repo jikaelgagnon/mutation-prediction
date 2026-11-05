@@ -13,7 +13,7 @@ import torch.utils
 from jaxtyping import Float, Int, Real
 from torch import Tensor, nn
 
-from mutation_prediction.vendor.thermompnn.proteinmpnn.model_utils import (
+from mutation_prediction.thermompnn_d_vendor.thermompnn.proteinmpnn.model_utils import (
     DecLayer,
     EncLayer,
     IPMPDecoder,

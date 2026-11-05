@@ -1,5 +1,28 @@
 # Mutation prediction
 
+```mermaid
+flowchart TD
+    raw["MegaScale data<br/>data/raw/megascale/{csv,pdb,splits.pkl}"]
+    baseline["Frozen ThermoMPNN baseline<br/>thermompnn.py + checkpoints/thermompnn/*.ckpt"]
+    targets["prepare_targets.py<br/>epsilon = measured ddG - additive baseline"]
+    labels["Training labels<br/>data/processed/thermompnn/Megascale-D-epsilon.csv"]
+    configs["configs/proteinmpnn_paths.example.yaml<br/>configs/model_train_epsilon.yaml"]
+    train["model/train.py<br/>data/{megascale,splits,collate}.py"]
+    model["model/model.py<br/>feature_extraction.py → heads.py<br/>Frozen ProteinMPNN → pooled-attention head"]
+    weights["Pretrained ProteinMPNN<br/>checkpoints/proteinmpnn/v_48_020.pt"]
+    output["checkpoints/model-epsilon/<br/>config.yaml + best/last .ckpt"]
+
+    raw --> targets
+    baseline --> targets
+    targets --> labels
+    raw --> train
+    labels --> train
+    configs --> train
+    weights --> model
+    model --> train
+    train -->|Train head; validate epsilon MSE| output
+```
+
 Predict double-mutant stability changes using a pretrained single-mutant
 ThermoMPNN baseline and our ProteinMPNN-based epsilon model.
 
@@ -73,13 +96,13 @@ See the [model API](docs/model.md) for composition and checkpoint loading.
 | [data/](src/mutation_prediction/data/) | MegaScale dataset, collator, mutation records, and download. |
 | [model/](src/mutation_prediction/model/) | ProteinMPNN feature extractor, your head, composition, and training. |
 | [configs/](configs/) | Epsilon training plus optional measured-ddG comparison. |
-| [vendor/](src/mutation_prediction/vendor/) | Retained upstream architecture; start elsewhere when learning this project. |
+| [thermompnn_d_vendor/](src/mutation_prediction/thermompnn_d_vendor/) | Retained upstream architecture; start elsewhere when learning this project. |
 | [notebooks/](notebooks/) | Optional exploration, outside the supported pipeline. |
 | [tests/](tests/) | Inference, label conventions, training/resume, and tensor contracts. |
 
 Read `model/feature_extraction.py` → `model/heads.py` → `model/model.py` →
 `model/train.py` to understand your model. Detailed [tensor shapes](docs/tensor_shapes.md)
-and [upstream provenance](src/mutation_prediction/vendor/README.md) are separate references.
+and [upstream provenance](src/mutation_prediction/thermompnn_d_vendor/README.md) are separate references.
 
 ## Optional tools
 

@@ -22,7 +22,9 @@ from mutation_prediction.tensor_types import (
     ProteinRecord,
     SamplingOutput,
 )
-from mutation_prediction.vendor.thermompnn.proteinmpnn.rigid_utils import Rigid
+from mutation_prediction.thermompnn_d_vendor.thermompnn.proteinmpnn.rigid_utils import (
+    Rigid,
+)
 
 
 def featurize(

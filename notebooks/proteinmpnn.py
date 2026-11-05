@@ -65,7 +65,7 @@ def _():
     from mutation_prediction.model.train import (
         parse_cfg,
     )
-    from mutation_prediction.vendor.thermompnn.thermompnn.model.modules import (
+    from mutation_prediction.thermompnn_d_vendor.thermompnn.thermompnn.model.modules import (
         get_protein_mpnn,
     )
 

@@ -20,10 +20,10 @@ from mutation_prediction.data.collate import (
 )
 from mutation_prediction.data.mutations import Mutation
 from mutation_prediction.tensor_types import ProteinRecord
-from mutation_prediction.vendor.thermompnn.thermompnn.model.v2_model import (
+from mutation_prediction.thermompnn_d_vendor.thermompnn.thermompnn.model.v2_model import (
     TransferModelv2,
 )
-from mutation_prediction.vendor.thermompnn.thermompnn.protein_mpnn_utils import (
+from mutation_prediction.thermompnn_d_vendor.thermompnn.thermompnn.protein_mpnn_utils import (
     ProteinMPNN,
     parse_PDB,
 )

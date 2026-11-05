@@ -20,9 +20,14 @@ from mutation_prediction.model import (
     PooledAttentionHead,
     ProteinMPNNFeatureExtractor,
 )
-from mutation_prediction.vendor.thermompnn.proteinmpnn import model_utils, rigid_utils
-from mutation_prediction.vendor.thermompnn.thermompnn import protein_mpnn_utils
-from mutation_prediction.vendor.thermompnn.thermompnn.model import (
+from mutation_prediction.thermompnn_d_vendor.thermompnn.proteinmpnn import (
+    model_utils,
+    rigid_utils,
+)
+from mutation_prediction.thermompnn_d_vendor.thermompnn.thermompnn import (
+    protein_mpnn_utils,
+)
+from mutation_prediction.thermompnn_d_vendor.thermompnn.thermompnn.model import (
     modules,
     side_chain_model,
     v2_model,
@@ -94,12 +99,12 @@ class TensorShapeTests(unittest.TestCase):
             "mutation_prediction.model.feature_extraction",
             "mutation_prediction.model.heads",
             "mutation_prediction.model.model",
-            "mutation_prediction.vendor.thermompnn.proteinmpnn.model_utils",
-            "mutation_prediction.vendor.thermompnn.proteinmpnn.rigid_utils",
-            "mutation_prediction.vendor.thermompnn.thermompnn.protein_mpnn_utils",
-            "mutation_prediction.vendor.thermompnn.thermompnn.model.modules",
-            "mutation_prediction.vendor.thermompnn.thermompnn.model.v2_model",
-            "mutation_prediction.vendor.thermompnn.thermompnn.model.side_chain_model",
+            "mutation_prediction.thermompnn_d_vendor.thermompnn.proteinmpnn.model_utils",
+            "mutation_prediction.thermompnn_d_vendor.thermompnn.proteinmpnn.rigid_utils",
+            "mutation_prediction.thermompnn_d_vendor.thermompnn.thermompnn.protein_mpnn_utils",
+            "mutation_prediction.thermompnn_d_vendor.thermompnn.thermompnn.model.modules",
+            "mutation_prediction.thermompnn_d_vendor.thermompnn.thermompnn.model.v2_model",
+            "mutation_prediction.thermompnn_d_vendor.thermompnn.thermompnn.model.side_chain_model",
             "mutation_prediction.data.megascale",
         )
         for name in names:

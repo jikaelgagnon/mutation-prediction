@@ -3,10 +3,10 @@ repos:
   # Ruff version.
   rev: v0.17.3
   hooks:
-    # Run the linter.
+    # Apply safe fixes and formatting, stage them, and allow remaining lint errors.
     - id: ruff-check
+      name: Ruff safe fixes and formatting
+      entry: python scripts/ruff_commit.py
       types_or: [ python, pyi ]
-      args: [ --fix ]
-    # Run the formatter.
-    - id: ruff-format
-      types_or: [ python, pyi, markdown , pyproject ]
+      args: []
+      require_serial: true

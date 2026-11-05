@@ -179,7 +179,7 @@ The vectorized single-pass prediction follows upstream's `run_single_ssm` in
 `v2_ssm.py` and `examples/configs/single.yaml`. The wrapper adapts it to our
 existing modules, supports CPU/GPU, and loads the model without the training
 wrapper. The upstream MIT license is retained in
-`src/mutation_prediction/vendor/thermompnn/LICENSE`.
+`src/mutation_prediction/thermompnn_d_vendor/thermompnn/LICENSE`.
 
 References: [original ThermoMPNN](https://doi.org/10.1073/pnas.2314853121) and
 [ThermoMPNN-D / updated single-mutant model](https://doi.org/10.1002/pro.70003).
