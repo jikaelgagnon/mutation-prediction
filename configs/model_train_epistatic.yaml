@@ -1,4 +1,4 @@
-# project: mutation-prediction
+project: mutation-prediction # W&B project name. Set to null to disable tracking.
 name: epistatic_no_aug
 
 data:

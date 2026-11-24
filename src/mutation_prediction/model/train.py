@@ -46,6 +46,7 @@ def parse_cfg(cfg):
     cfg.training.batch_size = cfg.training.get("batch_size", 256)
     cfg.training.epochs = cfg.training.get("epochs", 100)
     cfg.training.batch_fraction = cfg.training.get("batch_fraction", 1.0)
+    cfg.training.limit_val_batches = cfg.training.get("limit_val_batches", 1.0)
     cfg.training.shuffle = cfg.training.get("shuffle", True)
     cfg.training.seed = cfg.training.get("seed", 42)
     cfg.training.log_every_n_steps = cfg.training.get("log_every_n_steps", 1)
@@ -156,6 +157,7 @@ def train(cfg):
         accelerator=cfg.platform.get("accel", "auto"),
         devices=1,
         limit_train_batches=cfg.training.batch_fraction,
+        limit_val_batches=cfg.training.limit_val_batches,
         fast_dev_run=fast_dev_run,
     )
 

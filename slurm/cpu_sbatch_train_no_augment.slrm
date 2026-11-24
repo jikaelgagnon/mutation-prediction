@@ -16,12 +16,15 @@
 # Standard error log; %j is replaced with the job ID
 #SBATCH --error=logs/slurm_%j.err
 
-# activate environment
+set -euo pipefail
+
+cd ~/projects/def-sushant/jikael/mutation-prediction
 source .venv/bin/activate
 
-# enter working directory
-cd ~/projects/def-sushant/jikael/mutation-prediction
+export WANDB_MODE=offline
+export WANDB_DIR="$PWD"
 
-python -u -m mutation_prediction.model.train \
+exec python -u -m mutation_prediction.model.train \
   configs/proteinmpnn_paths.example.yaml \
-  configs/model_train_epistatic.yaml
+  configs/model_train_epistatic.yaml \
+  "$@"

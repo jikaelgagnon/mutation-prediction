@@ -1,0 +1,45 @@
+#!/bin/bash
+#SBATCH --job-name=epsilon-wandb-test
+#SBATCH -A def-sushant
+#SBATCH -c 4
+#SBATCH --mem=16G
+#SBATCH --gres=gpu:1
+#SBATCH --time=0:15:00
+#SBATCH --open-mode=append
+#SBATCH --output=logs/slurm_%j.out
+#SBATCH --error=logs/slurm_%j.err
+
+set -euo pipefail
+
+cd ~/projects/def-sushant/jikael/mutation-prediction
+source .venv/bin/activate
+
+export WANDB_MODE=offline
+export WANDB_DIR="$PWD"
+
+# Keep the smoke test's config snapshot separate from full training runs.
+smoke_config=$(mktemp "${TMPDIR:-/tmp}/epsilon-wandb-test.XXXXXX")
+trap 'rm -f -- "$smoke_config"' EXIT
+smoke_output="checkpoints/wandb-test/epsilon-${SLURM_JOB_ID:-local-$$}"
+
+python - "$smoke_config" "$smoke_output" <<'PY'
+import sys
+
+from omegaconf import OmegaConf
+
+config = OmegaConf.load("configs/model_train_epsilon.yaml")
+config.project = config.get("project") or "mutation-prediction"
+config.name = f"{config.name}-wandb-test"
+config.training.output_dir = sys.argv[2]
+config.training.epochs = 1
+config.training.batch_size = 2
+config.training.batch_fraction = 1
+config.training.limit_val_batches = 1
+config.training.log_every_n_steps = 1
+config.training.fast_dev_run = False
+OmegaConf.save(config, sys.argv[1])
+PY
+
+python -u -m mutation_prediction.model.train \
+  configs/proteinmpnn_paths.example.yaml \
+  "$smoke_config"
