@@ -221,7 +221,10 @@ class MutationPredictionModelPL(pl.LightningModule):
     def training_step(
         self, batch: MutationBatch, batch_idx: int
     ) -> Float[Tensor, ""] | None:
-        return self.shared_eval(batch, batch_idx, "train")
+        loss = self.shared_eval(batch, batch_idx, "train")
+        if self.logger is not None:
+            self.log("train_loss_step", loss, on_step=True, on_epoch=False)
+        return loss
 
     # Trainer runs validation in evaluation mode with gradients disabled.
     # This measures performance without updating model weights.

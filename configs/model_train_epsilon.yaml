@@ -1,5 +1,5 @@
 project: mutation-prediction # W&B project name; null (or omit key) disables W&B.
-name: pooled_attention_epsilon # Any string; W&B run name and checkpoint filename prefix.
+name: pooled_attention_epsilon # Prefix for W&B run names and checkpoint filenames.
 
 data:
   dataset: megascale # Supported dataset: megascale.

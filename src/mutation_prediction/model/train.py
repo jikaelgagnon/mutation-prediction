@@ -2,7 +2,9 @@
 
 import argparse
 import os
+from contextlib import nullcontext
 from functools import partial
+from uuid import uuid4
 
 import pytorch_lightning as pl
 from omegaconf import OmegaConf
@@ -45,6 +47,8 @@ def parse_cfg(cfg):
     cfg.training.epochs = cfg.training.get("epochs", 100)
     cfg.training.batch_fraction = cfg.training.get("batch_fraction", 1.0)
     cfg.training.shuffle = cfg.training.get("shuffle", True)
+    cfg.training.seed = cfg.training.get("seed", 42)
+    cfg.training.log_every_n_steps = cfg.training.get("log_every_n_steps", 1)
 
     cfg.training.learn_rate = cfg.training.get("learn_rate", 0.0001)
     cfg.training.mpnn_learn_rate = cfg.training.get("mpnn_learn_rate", None)
@@ -76,7 +80,7 @@ def train(cfg):
         )
     head_constructor = HEADS[cfg.model.head]
     print("Configuration:\n", OmegaConf.to_yaml(cfg))
-    pl.seed_everything(cfg.training.get("seed", 42), workers=True)
+    pl.seed_everything(cfg.training.seed, workers=True)
 
     train_dataset, val_dataset = get_v2_dataset(cfg)
     if not len(train_dataset) or not len(val_dataset):
@@ -121,24 +125,45 @@ def train(cfg):
         save_last=True,
     )
 
+    fast_dev_run = cfg.training.get("fast_dev_run", False)
     logger = False
-    if cfg.project is not None:
+    if cfg.project is not None and not fast_dev_run:
         from pytorch_lightning.loggers import WandbLogger
 
-        logger = WandbLogger(project=cfg.project, name=cfg.name, log_model=False)
+        log_dir = os.path.abspath(os.environ.get("WANDB_DIR") or ".")
+        os.makedirs(log_dir, exist_ok=True)
+        run_id = uuid4().hex[:12]
+        slurm_job_id = os.environ.get("SLURM_JOB_ID")
+        job_suffix = f"-slurm-{slurm_job_id}" if slurm_job_id else ""
+        logger = WandbLogger(
+            project=cfg.project,
+            name=f"{cfg.name}{job_suffix}-{run_id}",
+            id=run_id,
+            save_dir=log_dir,
+            resume=None,
+            log_model=False,
+            config={
+                "run_config": OmegaConf.to_container(cfg, resolve=True),
+                "slurm_job_id": slurm_job_id,
+            },
+        )
 
     trainer = pl.Trainer(
         callbacks=[checkpoint_callback],
         logger=logger,
-        log_every_n_steps=100,
+        log_every_n_steps=cfg.training.log_every_n_steps,
         max_epochs=cfg.training.epochs,
         accelerator=cfg.platform.get("accel", "auto"),
         devices=1,
         limit_train_batches=cfg.training.batch_fraction,
-        fast_dev_run=cfg.training.get("fast_dev_run", False),
+        fast_dev_run=fast_dev_run,
     )
 
-    trainer.fit(model_pl, train_loader, val_loader, ckpt_path=cfg.training.get("ckpt"))
+    run = logger.experiment if logger else nullcontext()
+    with run:
+        trainer.fit(
+            model_pl, train_loader, val_loader, ckpt_path=cfg.training.get("ckpt")
+        )
     return trainer
 
 

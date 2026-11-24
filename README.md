@@ -97,6 +97,56 @@ there is no combined double-mutant prediction CLI. At inference, add its output
 to the baseline generated with the same ThermoMPNN checkpoint used for training.
 See the [model API](docs/model.md) for composition and checkpoint loading.
 
+### Record W&B runs offline on Narval
+
+On a Narval login node, prepare the environment from the repository root and
+authenticate for later uploads:
+
+```bash
+uv sync --extra tracking
+uv run --extra tracking wandb login
+```
+
+If W&B reports that you're already logged in as the intended account, you can
+use those saved credentials when you sync.
+
+In the Slurm job, run from the same repository root on shared storage. Set
+`project` in the training YAML to enable tracking and `name` to a short label
+you can recognize in the dashboard.
+
+```bash
+WANDB_MODE=offline WANDB_DIR="$PWD" uv run --offline --no-sync mutation-prediction \
+  configs/proteinmpnn_paths.example.yaml configs/model_train_epsilon.yaml
+```
+
+Each launch writes a separate `wandb/offline-run-*` directory. The W&B display
+name includes the config's `name`, the Slurm job ID when available, and a unique
+run ID. W&B Config stores the resolved run settings under `run_config` and the
+Slurm ID under `slurm_job_id`. Keep credentials out of the YAML because the
+resolved values will be uploaded when you sync.
+
+`train_loss_step` records training loss during the epoch. Set
+`training.log_every_n_steps` in the YAML to log less often. Epoch metrics
+such as `train_epsilon_mse` and `val_epsilon_mse` appear when their respective
+loops finish. Use a separate `training.output_dir` per concurrent job to keep
+its checkpoints and `config.yaml` together. A `--resume` launch uses a new W&B
+run ID and records the checkpoint path in its config.
+
+After the job exits, preview and upload unsynced runs from the login node:
+
+```bash
+uv run --extra tracking wandb sync --dry-run
+uv run --extra tracking wandb sync
+```
+
+Pass `wandb/offline-run-<timestamp>-<id>` to sync a single run. Add
+`--entity <account-or-team> --project <project>` to override the destination.
+For older `wandb/run-*` directories recorded in online mode, add
+`--include-online`. If you set `WANDB_DIR` to another shared parent directory,
+pass the run directories under that parent's `wandb/` folder explicitly.
+Keep the offline run directories until you've checked the synced metrics and
+config in the dashboard.
+
 ## Where to start reading
 
 | Location | Purpose |
