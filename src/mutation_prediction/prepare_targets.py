@@ -3,7 +3,6 @@
 One encoder pass per WT structure supplies both constituent predictions for
 every pair belonging to that protein. This script does not generate augmentation.
 """
-
 from __future__ import annotations
 
 import argparse
@@ -22,8 +21,9 @@ from mutation_prediction.thermompnn import ALPHABET, ThermoMPNNPredictor
 from mutation_prediction.thermompnn_d_vendor.thermompnn.thermompnn.protein_mpnn_utils import (
     parse_PDB,
 )
-
+print("done imports")
 REPO_ROOT = Path.cwd()
+print(REPO_ROOT)
 SUBSTITUTION = re.compile(
     r"([ACDEFGHIKLMNPQRSTVWY])([1-9][0-9]*)([ACDEFGHIKLMNPQRSTVWY])"
 )
@@ -230,6 +230,7 @@ def main():
     )
     parser.add_argument("--chain", default="A")
     parser.add_argument("--device", default="auto", help="auto, cpu, cuda, or cuda:0")
+    print("Parsed args")
     args = parser.parse_args()
 
     if args.predictions_csv is not None:
@@ -250,6 +251,7 @@ def main():
             "sha256": sha256(args.predictions_csv),
         }
     else:
+        print(args.input_csv)
         frame = pd.read_csv(args.input_csv)
         device = args.device
         if device == "auto":

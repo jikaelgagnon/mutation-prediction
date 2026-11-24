@@ -1,0 +1,27 @@
+#!/bin/bash
+#SBATCH --job-name="mutation-prediction-training"
+#SBATCH -A def-sushant
+#SBATCH -c 4
+#SBATCH --mem=16G
+
+# (days-hours:minutes:seconds)
+#SBATCH --time=0:15:00
+
+# Append to existing log files instead of overwriting them
+#SBATCH --open-mode=append
+
+# Standard output log; %j is replaced with the job ID
+#SBATCH --output=logs/slurm_%j.out
+
+# Standard error log; %j is replaced with the job ID
+#SBATCH --error=logs/slurm_%j.err
+
+# activate environment
+source .venv/bin/activate
+
+# enter working directory
+cd ~/projects/def-sushant/jikael/mutation-prediction
+
+python -u -m mutation_prediction.model.train \
+  configs/proteinmpnn_paths.example.yaml \
+  configs/model_train_epistatic.yaml
