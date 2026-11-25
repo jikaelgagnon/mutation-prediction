@@ -9,7 +9,9 @@ Use the project environment instead of a sandboxed notebook environment.
 - `inspect_megascale_validation.py`: inspect measured single-mutant validation records.
 - `ThermoMPNN_D_Data_Exploration.ipynb`: explore measured double mutants and structures.
 
-Prepare data/checkpoints using the root README first. The Marimo model notebooks
+Prepare data and checkpoints using the [setup guide](../docs/setup.md) first;
+it uses `curl` and the released splits, with no setup notebook required.
+The Marimo model notebooks
 retain the measured-ddG comparison configuration; the supported epsilon training
 command is documented in the root README. None of these notebooks is a required
 pipeline step.

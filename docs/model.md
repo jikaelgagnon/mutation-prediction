@@ -49,19 +49,21 @@ Parameter paths now start with `feature_extractor.prot_mpnn` and
 [`src/mutation_prediction/model/train.py`](../src/mutation_prediction/model/train.py)
 loads the YAML configuration, builds the data loaders, and launches training.
 
-Run [the training entry point](../src/mutation_prediction/model/train.py) from the
-repository root:
+Obtain the published data and weights using the [setup guide](setup.md).
+Inside a compute allocation, run [the training entry point](../src/mutation_prediction/model/train.py)
+from the repository root:
 
 ```bash
 uv run python -m mutation_prediction.model.train \
   configs/proteinmpnn_paths.example.yaml \
-  configs/model_train_epistatic.yaml
+  configs/model_train_epsilon.yaml
 ```
 
-This trains the configured pooled-attention head on the MegaScale double-mutant training and
-validation splits. By default, the pretrained ProteinMPNN encoder is frozen and
+This trains the configured pooled-attention head on epsilon targets from the
+published MegaScale double-mutant training and validation splits. By default,
+the pretrained ProteinMPNN encoder is frozen and
 the pooled-attention prediction layers are trained for 100 epochs with a batch
-size of 128 and a learning rate of `0.00001`.
+size of 256 and a learning rate of `0.00001`.
 
 The command takes two positional YAML files. Settings in the second file override
 those in the first:
@@ -71,34 +73,28 @@ those in the first:
   `platform.accel` (`auto` by default; set `cpu` or `gpu` to choose explicitly).
   The internal `platform.thermompnn_dir` key is retained for loader compatibility;
   it points to ProteinMPNN checkpoints.
-- [Model and training options](../configs/model_train_epistatic.yaml): the dataset
+- [Model and training options](../configs/model_train_epsilon.yaml): the dataset
   CSV path, mutation types, model settings, batch size, learning rate, epoch count,
   data-loader workers, and output directory. Reduce `training.batch_size` if you
   run out of memory. Set `model.freeze_weights: false` to fine-tune the encoder.
 
-Place the pretrained ProteinMPNN checkpoint in `checkpoints/proteinmpnn/` (see the README).
+Place the pretrained ProteinMPNN checkpoint in `checkpoints/proteinmpnn/`
+(see the [setup guide](setup.md#3-download-the-two-pretrained-weight-files)).
 If your data or checkpoints are elsewhere, update the corresponding YAML paths.
 Relative paths are resolved from the directory where you run training.
 
-The best checkpoint, selected by the highest validation Spearman correlation
-(`val_ddG_spearman`), is saved in `checkpoints/model-no-aug/`. Its filename includes the run
+The best checkpoint, selected by the lowest validation epsilon MSE
+(`val_epsilon_mse`), is saved in `checkpoints/model-epsilon/`. Its filename includes the run
 name, epoch, and validation score. Change `training.output_dir` or `name` in the
 training configuration to customize these outputs. The learning-rate scheduler
-continues to monitor validation MSE (`val_ddG_mse`).
+continues to monitor validation MSE (`val_epsilon_mse`).
 
-To enable Weights & Biases logging, uncomment the `project` setting in
-`configs/model_train_epistatic.yaml` and authenticate with W&B before training.
-With `project` omitted, W&B logging is disabled.
+The default epsilon YAML enables Weights & Biases logging via `project`;
+install the tracking extra as shown in setup. The Slurm jobs record offline,
+with authentication only required for later uploads. With `project` omitted
+or set to null, W&B logging is disabled.
 
-### Train epsilon predictions
-
-To train `MutationPredictionModelPL` to output epsilon hat directly, run:
-
-```bash
-uv run python -m mutation_prediction.model.train \
-  configs/proteinmpnn_paths.example.yaml \
-  configs/model_train_epsilon.yaml
-```
+### Epsilon targets
 
 This reads `data/processed/thermompnn/Megascale-D-epsilon.csv` and minimizes
 `mean((epsilon_hat - epsilon_target) ** 2)`, where
@@ -122,4 +118,9 @@ scheduler also monitors `val_epsilon_mse`.
 Append `--fast-dev-run` for one training and validation batch. To resume a full
 run, append `--resume checkpoints/model-epsilon/last.ckpt`. Adjust the epsilon
 YAML to change batch size, learning rate, epochs, or data-loader workers.
+
+The optional `configs/model_train_epistatic.yaml` retains a legacy measured-ddG
+comparison on `Megascale-D-full.csv`; it uses different input memberships and
+the opposite target sign. The setup guide and default training job use the
+epsilon configuration above for the published no-augmentation splits.
 

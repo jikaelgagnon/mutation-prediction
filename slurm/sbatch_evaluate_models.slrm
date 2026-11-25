@@ -1,0 +1,21 @@
+#!/bin/bash
+#SBATCH --job-name=mutation-model-evaluation
+#SBATCH -A def-sushant
+#SBATCH -c 4
+#SBATCH --mem=16G
+#SBATCH --gres=gpu:1
+#SBATCH --time=01:00:00
+#SBATCH --output=logs/evaluate_%j.out
+#SBATCH --error=logs/evaluate_%j.err
+
+set -euo pipefail
+
+cd "${SLURM_SUBMIT_DIR:?Submit this job from the repository root}"
+source .venv/bin/activate
+
+# Arguments after the Slurm script are forwarded to the evaluation command.
+# Example: sbatch slurm/sbatch_evaluate_models.slrm --checkpoint epsilon=checkpoints/model-epsilon/CHOSEN.ckpt
+exec python -u -m mutation_prediction.evaluate configs/model_evaluate.yaml \
+  --device cuda \
+  --output-dir "results/evaluation/slurm-${SLURM_JOB_ID}" \
+  "$@"

@@ -11,7 +11,7 @@
 
 set -euo pipefail
 
-cd ~/projects/def-sushant/jikael/mutation-prediction
+cd "${SLURM_SUBMIT_DIR:?Submit this job from the repository root}"
 source .venv/bin/activate
 
 export PYTHONPATH="$PWD/src${PYTHONPATH:+:$PYTHONPATH}"

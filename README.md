@@ -40,77 +40,31 @@ Targets and final predictions use kcal/mol, positive for destabilization.
 
 ## Quick start
 
-Run commands from the repository root. Install Python 3.13+ and
-[uv](https://docs.astral.sh/uv/), then:
+**Start with [Set up the ThermoMPNN-D no-augmentation data](docs/setup.md).**
+It is the complete first-run guide, with copyable commands in execution order:
 
-```bash
-uv sync
-uv run download-megascale
-```
+1. Install the environment with `uv sync --extra tracking`.
+2. Download the published MegaScale and PTMUL-D archives using `curl`, verify
+   checksums, and extract them to the configured paths.
+3. Download the single-mutant ThermoMPNN baseline and vanilla ProteinMPNN weights.
+4. Submit the label-preparation job and wait for its split audit to pass.
+5. Train, then evaluate a validation-selected checkpoint on both test sets.
 
-Enable Ruff checks on commits by installing the pre-commit hook:
+The default workflow preserves the paper's Table 1 no-data-augmentation
+memberships: **85,253 / 10,282 / 18,574** MegaScale train/validation/test mutations,
+plus **536 PTMUL-D mutations for external testing only**. It requires no setup
+notebook, split regeneration, or Rosetta augmentation data.
 
-```bash
-uv run pre-commit install
-```
+Submit jobs from the repository root. The main preparation, training, and
+evaluation jobs use your submission directory; override `--account` if your
+Slurm allocation differs from the default `def-sushant`.
 
-The hook applies Ruff's safe fixes and formatting to staged Python files, then
-stages any changes it makes. Remaining lint errors do not block the commit.
-To run it across the repository manually, use `uv run pre-commit run --all-files`.
+Further details:
 
-Data and checkpoints are gitignored. The download creates
-`data/raw/megascale/{csv,pdb,splits.pkl}`; no Rosetta structures are needed.
-A nonempty existing MegaScale directory is skipped, so remove an incomplete
-download before retrying.
-
-Download the matching single-mutant ThermoMPNN v2 checkpoint using the
-[inference guide](docs/thermompnn_inference.md#get-the-weights).
-For the epsilon feature extractor, place `v_48_020.pt` from the pinned
-[upstream ProteinMPNN weights](https://github.com/Kuhlman-Lab/ThermoMPNN-D/tree/df9a75aaddb674a7c4c193005031fc0536d325fb/vanilla_model_weights)
-in `checkpoints/proteinmpnn/`. These are two different checkpoints.
-
-Prepare the residual labels and train:
-
-```bash
-uv run prepare-targets --output data/processed/thermompnn/Megascale-D-epsilon.csv
-uv run mutation-prediction configs/proteinmpnn_paths.example.yaml configs/model_train_epsilon.yaml
-```
-
-Target preparation defaults to the published `Megascale-D-{train,val,test}.csv`
-files, preserving the no-data-augmentation ablation memberships: 85,253 / 10,282 /
-18,574 mutations across 90 / 17 / 20 proteins. The combined output includes a
-`split` column and per-source hashes/counts in its metadata. The existing training
-loader selects these proteins using `splits.pkl`; no model changes are required.
-`Megascale-D-full.csv` is a different benchmark dataset and is only used if
-explicitly supplied with `--input-csv`.
-
-For an existing cached export, use
-`prepare-targets --predictions-csv <cached.csv> --output data/processed/thermompnn/Megascale-D-epsilon.csv`.
-This computes labels without running the baseline again and preserves the cache's
-memberships. An old cache generated from `Megascale-D-full.csv` does not reproduce
-the published ablation splits; regenerate it with the default preparation path.
-
-For cluster-only red/green checks, target generation, and a full membership audit,
-see the [published-split Slurm job](slurm/README.md#prepare-the-published-no-augmentation-splits).
-Train a fresh model after replacing the old dataset; do not resume a checkpoint
-trained on the previous memberships.
-
-Edit the paths/device in `configs/proteinmpnn_paths.example.yaml` and training
-options in `configs/model_train_epsilon.yaml`. Paths resolve from the working
-directory. Append `--fast-dev-run` for one training/validation batch, or
-`--resume checkpoints/model-epsilon/last.ckpt` to resume training.
-Checkpoints are selected by validation epsilon MSE.
-
-To predict single-mutant effects for a structure:
-
-```bash
-uv run thermompnn-infer --checkpoint checkpoints/thermompnn/ThermoMPNN-ens1.ckpt --pdb protein.pdb --chain A --device cpu --output predictions.csv
-```
-
-The epsilon model currently exposes a Python model API and training command;
-there is no combined double-mutant prediction CLI. At inference, add its output
-to the baseline generated with the same ThermoMPNN checkpoint used for training.
-See the [model API](docs/model.md) for composition and checkpoint loading.
+- [Label generation and single-mutant inference](docs/thermompnn_inference.md).
+- [Model composition and training options](docs/model.md).
+- [Evaluation, new model adapters, and cluster test commands](docs/evaluation.md).
+- [Job monitoring, logs, and W&B sync](slurm/README.md).
 
 ### Record W&B runs offline on Narval
 
@@ -170,6 +124,7 @@ config in the dashboard.
 | [prepare_targets.py](src/mutation_prediction/prepare_targets.py) | Cached single predictions, additive baseline, epsilon labels, and provenance. |
 | [data/](src/mutation_prediction/data/) | MegaScale dataset, collator, mutation records, and download. |
 | [model/](src/mutation_prediction/model/) | ProteinMPNN feature extractor, your head, composition, and training. |
+| [evaluate.py](src/mutation_prediction/evaluate.py) | Fixed-test-set comparisons, model adapters, predictions, and paper-reference metrics. |
 | [configs/](configs/) | Epsilon training plus optional measured-ddG comparison. |
 | [thermompnn_d_vendor/](src/mutation_prediction/thermompnn_d_vendor/) | Retained upstream architecture; start elsewhere when learning this project. |
 | [notebooks/](notebooks/) | Optional exploration, outside the supported pipeline. |
@@ -182,17 +137,24 @@ and [upstream provenance](src/mutation_prediction/thermompnn_d_vendor/README.md)
 ## Optional tools
 
 ```bash
-uv sync --extra notebooks
+uv sync --extra tracking --extra notebooks
 uv run marimo edit notebooks/try_model.py
-uv sync --extra tracking
+uv run pre-commit install
 ```
 
 Run notebooks in the project environment, not an isolated notebook sandbox.
+They are optional exploration; follow the [setup guide](docs/setup.md) to obtain
+data and weights first.
 Set `project` in the training YAML to enable W&B logging.
 `configs/model_train_epistatic.yaml` retains the measured-ddG comparison;
 its legacy training targets use the opposite sign from the epsilon workflow.
 Rosetta augmentation, upstream ThermoMPNN training, the Siamese model, and
 legacy benchmark inference have been retired.
 
-Validation: `uv run python -m unittest discover -s tests -v`.
+The pre-commit hook applies Ruff's safe fixes and formatting to staged Python
+files, then stages its changes. Remaining lint errors do not block the commit.
+Run it manually with `uv run pre-commit run --all-files`.
+
+Inside a cluster compute allocation, run the test suite with
+`.venv/bin/python -m unittest discover -s tests -v`.
 

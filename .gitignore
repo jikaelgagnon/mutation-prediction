@@ -13,6 +13,9 @@ checkpoints/*
 
 logs/
 
+# Benchmark predictions, metrics, and resolved run manifests.
+results/evaluation/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

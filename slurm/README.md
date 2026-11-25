@@ -1,10 +1,12 @@
 ### Submit a Slurm job
 
 Run from the project directory on the Narval login node. Set up the environment
-with `uv sync --extra tracking` before submitting jobs.
+and download all data/weights using the [setup guide](../docs/setup.md) before
+submitting jobs. The main preparation, training, and evaluation jobs use
+`SLURM_SUBMIT_DIR`, so submit from the repository root. Their default account
+is `def-sushant`; override with `sbatch --account=def-YOUR_PI ...` if needed.
 
 ```bash
-cd ~/projects/def-sushant/jikael/mutation-prediction
 mkdir -p logs
 sbatch slurm/sbatch_train_epsilon_no_aug.slrm
 ```
@@ -15,7 +17,7 @@ Submission prints a job ID. Replace JOB_ID below with that number.
 
 Run these checks and data preparation on the cluster. Install dependencies and
 download the MegaScale data and single-mutant ThermoMPNN checkpoint first (see
-the [setup instructions](../README.md)). Then submit from the repository root:
+the [setup instructions](../docs/setup.md)). Then submit from the repository root:
 
 ```bash
 mkdir -p logs
@@ -56,6 +58,23 @@ ordinary test discovery unless `MEGASCALE_EPSILON_CSV` is set.
 Only after this job succeeds, submit `slurm/sbatch_train_epsilon_no_aug.slrm`
 for a fresh run without `--resume`. The training configuration and architecture
 do not need changes.
+
+### Evaluate trained models
+
+Choose a checkpoint from validation performance, then submit:
+
+```bash
+sbatch slurm/sbatch_evaluate_models.slrm --checkpoint epsilon=checkpoints/model-epsilon/YOUR_SELECTED_CHECKPOINT.ckpt
+```
+
+This evaluates the cached additive baseline and the selected epsilon model on
+the exact published MegaScale-D test set and the curated PTMUL-D set. Results go to
+`results/evaluation/slurm-JOBID/`; logs go to `logs/evaluate_JOBID.out` and `.err`.
+The PTMUL-D paths in `configs/model_evaluate.yaml` match the authors' archive
+extracted under `data/raw/ptmul/`. To evaluate only MegaScale-D, add
+`--datasets megascale_test`.
+See the [evaluation guide](../docs/evaluation.md) for adding models, grouped seed
+results, ensembles, output details, and the CPU test command.
 
 ### Sync W&B runs after the job
 

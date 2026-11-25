@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH --job-name=submit-dir-demo
+#SBATCH --account=def-sushant
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=128M
+#SBATCH --time=00:01:00
+#SBATCH --output=submit-dir-demo_%j.out
+
+set -euo pipefail
+
+printf 'SLURM_SUBMIT_DIR: %s\n' "${SLURM_SUBMIT_DIR-<unset>}"
+printf 'Starting directory: %s\n' "$PWD"
+
+# Move away so the effect of the next cd is visible.
+cd /tmp
+printf 'Before cd: %s\n' "$PWD"
+
+cd "${SLURM_SUBMIT_DIR:?Submit this job from the repository root}"
+printf 'After cd:  %s\n' "$PWD"

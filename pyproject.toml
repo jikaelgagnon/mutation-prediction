@@ -29,6 +29,7 @@ notebooks = ["marimo>=0.25.1", "ipykernel>=7.4.0", "py3dmol>=2.5.5", "altair>=5"
 mutation-prediction = "mutation_prediction.model.train:main"
 thermompnn-infer = "mutation_prediction.thermompnn:main"
 prepare-targets = "mutation_prediction.prepare_targets:main"
+mutation-evaluate = "mutation_prediction.evaluate:main"
 download-megascale = "mutation_prediction.data.download:main"
 
 [build-system]

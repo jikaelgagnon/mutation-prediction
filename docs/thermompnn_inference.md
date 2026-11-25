@@ -10,18 +10,14 @@ Only a matching `ThermoMPNN-ens*.ckpt` is needed. It contains the complete
 ProteinMPNN encoder and prediction head, so there is no separate encoder
 checkpoint, training dataset, Lightning trainer, W&B setup, or retraining step.
 No additional dependencies are required beyond this project's environment.
+Run inference examples below inside a compute allocation. For the complete
+download/preparation/training workflow, follow the [setup guide](setup.md).
 
 ## Get the weights
 
-The downloaded weights belong under `checkpoints/thermompnn/`, which is
-gitignored. From the repository root:
-
-```bash
-mkdir -p checkpoints/thermompnn
-curl --fail --location \
-  https://raw.githubusercontent.com/Kuhlman-Lab/ThermoMPNN-D/df9a75aaddb674a7c4c193005031fc0536d325fb/model_weights/ThermoMPNN-ens1.ckpt \
-  --output checkpoints/thermompnn/ThermoMPNN-ens1.ckpt
-```
+The [setup guide](setup.md#3-download-the-two-pretrained-weight-files) contains
+the pinned download commands for both required weight files. The single-mutant
+baseline belongs at `checkpoints/thermompnn/ThermoMPNN-ens1.ckpt`.
 
 The file is 10,579,907 bytes, SHA-256:
 
