@@ -1,9 +1,11 @@
-"""Extract per-mutation features from one wild-type ProteinMPNN pass."""
+"""Extract mutation or all-residue features from one wild-type ProteinMPNN pass."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import torch
-from jaxtyping import Float, Int, Real
+from jaxtyping import Bool, Float, Int, Real
 from torch import Tensor, nn
 
 from mutation_prediction.thermompnn_d_vendor.thermompnn.thermompnn.model.modules import (
@@ -30,7 +32,45 @@ def _check_sequence_match(
     return S
 
 
-class ProteinMPNNFeatureExtractor(nn.Module):
+@dataclass(frozen=True)
+class ProteinFeatures:
+    """All-node head input; True masks mark usable residues/mutation slots."""
+
+    nodes: Float[Tensor, "batch length features"]
+    valid_mask: Bool[Tensor, "batch length"]
+    mutation_positions: Int[Tensor, "batch mutations"]
+    mutation_mask: Bool[Tensor, "batch mutations"] | None = None
+
+
+class _ProteinMPNNFeatures(nn.Module):
+    """Shared WT encoding, keeping the encoder at the prot_mpnn parameter path."""
+
+    def __init__(self, cfg, *, protein_encoder: nn.Module | None = None):
+        super().__init__()
+        self.num_final_layers = cfg.model.num_final_layers
+        if self.num_final_layers <= 0:
+            raise ValueError("num_final_layers must be positive")
+        self.prot_mpnn = (
+            protein_encoder if protein_encoder is not None else get_protein_mpnn(cfg)
+        )
+
+    def _encode_wt(self, X, S, mask, chain_M, residue_idx, chain_encoding_all):
+        hidden_states, wt_embed, _, _ = self.prot_mpnn(
+            torch.nan_to_num(X, nan=0.0),
+            S,
+            mask,
+            chain_M,
+            residue_idx,
+            chain_encoding_all,
+        )
+        if self.num_final_layers > len(hidden_states):
+            raise ValueError("num_final_layers exceeds the encoder's decoder layers")
+        # ProteinMPNN returns its decoder states last layer first.
+        hidden = torch.cat(hidden_states[: self.num_final_layers], dim=-1)
+        return hidden, wt_embed
+
+
+class ProteinMPNNFeatureExtractor(_ProteinMPNNFeatures):
     """Return final_embed [B, M, D] for the M mutated residues.
 
     Each vector concatenates the last K decoder states with the WT amino-acid
@@ -39,14 +79,8 @@ class ProteinMPNNFeatureExtractor(nn.Module):
     """
 
     def __init__(self, cfg, *, protein_encoder: nn.Module | None = None):
-        super().__init__()
-        self.num_final_layers = cfg.model.num_final_layers
+        super().__init__(cfg, protein_encoder=protein_encoder)
         self.mutant_embedding = cfg.model.mutant_embedding
-        if self.num_final_layers <= 0:
-            raise ValueError("num_final_layers must be positive")
-        self.prot_mpnn = (
-            protein_encoder if protein_encoder is not None else get_protein_mpnn(cfg)
-        )
         self.output_dim = self.prot_mpnn.W_s.embedding_dim * (self.num_final_layers + 1)
 
     def forward(
@@ -108,15 +142,9 @@ class ProteinMPNNFeatureExtractor(nn.Module):
             replaced with zero before encoding without modifying X in place.
         """
         S = _check_sequence_match(S, mut_wildtype_AAs, mut_mutant_AAs, mut_positions)
-        X = torch.nan_to_num(X, nan=0.0)
-        hidden_states, wt_embed, _, _ = self.prot_mpnn(
+        hidden, wt_embed = self._encode_wt(
             X, S, mask, chain_M, residue_idx, chain_encoding_all
         )
-        if self.num_final_layers > len(hidden_states):
-            raise ValueError("num_final_layers exceeds the encoder's decoder layers")
-
-        # ProteinMPNN returns its decoder states last layer first.
-        hidden = torch.cat(hidden_states[: self.num_final_layers], dim=-1)
         positions = mut_positions.unsqueeze(-1)
         struct_embed = hidden.gather(1, positions.expand(-1, -1, hidden.shape[-1]))
         seq_embed = wt_embed.gather(1, positions.expand(-1, -1, wt_embed.shape[-1]))
@@ -125,3 +153,60 @@ class ProteinMPNNFeatureExtractor(nn.Module):
 
         final_embed = torch.cat([struct_embed, seq_embed], dim=-1)
         return final_embed
+
+
+class AllNodeProteinMPNNFeatureExtractor(_ProteinMPNNFeatures):
+    """Return [decoder states, WT embedding, WT-minus-mutant, indicator].
+
+    The last two fields are zero at unchanged residues. Unlike the mutation-only
+    extractor, mutation identity is always encoded, independent of the legacy
+    mutant_embedding option. Width is E * (K + 2) + 1. Identity substitutions
+    (including the collator's zero-filled mutation slots) are excluded.
+    """
+
+    def __init__(self, cfg, *, protein_encoder: nn.Module | None = None):
+        super().__init__(cfg, protein_encoder=protein_encoder)
+        self.output_dim = (
+            self.prot_mpnn.W_s.embedding_dim * (self.num_final_layers + 2) + 1
+        )
+
+    def forward(
+        self,
+        X: Float[Tensor, "batch length atoms 3"],
+        S: Int[Tensor, "batch length"],
+        mask: Real[Tensor, "batch length"],
+        chain_M: Real[Tensor, "batch length"],
+        residue_idx: Int[Tensor, "batch length"],
+        chain_encoding_all: Int[Tensor, "batch length"],
+        mut_positions: Int[Tensor, "batch mutations"],
+        mut_wildtype_AAs: Int[Tensor, "batch mutations"],
+        mut_mutant_AAs: Int[Tensor, "batch mutations"],
+    ) -> ProteinFeatures:
+        changed = mut_wildtype_AAs != mut_mutant_AAs
+        S = S.clone()
+        # Ignore padded mutation slots, even when a real mutation is at residue 0.
+        for i in range(mut_positions.shape[1]):
+            pos = mut_positions[:, i : i + 1]
+            wt = torch.where(
+                changed[:, i : i + 1], mut_wildtype_AAs[:, i : i + 1], S.gather(1, pos)
+            )
+            S.scatter_(1, pos, wt)
+        hidden, wt_embed = self._encode_wt(
+            X, S, mask, chain_M, residue_idx, chain_encoding_all
+        )
+        valid_mask = mask.bool()
+        mutation_mask = changed & valid_mask.gather(1, mut_positions)
+        positions = mut_positions.unsqueeze(-1)
+        delta = self.prot_mpnn.W_s(mut_wildtype_AAs) - self.prot_mpnn.W_s(
+            mut_mutant_AAs
+        )
+        delta = delta.masked_fill(~mutation_mask.unsqueeze(-1), 0)
+        node_delta = torch.zeros_like(wt_embed).scatter_add(
+            1, positions.expand_as(delta), delta
+        )
+        indicator = wt_embed.new_zeros((*S.shape, 1)).scatter_add(
+            1, positions, mutation_mask.unsqueeze(-1).to(wt_embed.dtype)
+        )
+        nodes = torch.cat([hidden, wt_embed, node_delta, indicator], dim=-1)
+        nodes = nodes.masked_fill(~valid_mask.unsqueeze(-1), 0)
+        return ProteinFeatures(nodes, valid_mask, mut_positions, mutation_mask)

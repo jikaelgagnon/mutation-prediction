@@ -15,17 +15,16 @@ from mutation_prediction.data.collate import (
     tied_featurize_mut,
 )
 from mutation_prediction.data.splits import get_v2_dataset
+from mutation_prediction.model.build import HEADS as HEADS  # noqa: PLC0414 -- public re-export
+from mutation_prediction.model.build import (
+    TRANSFORMER_DEFAULTS,
+    build_model,
+    get_head_constructor,
+)
 from mutation_prediction.model.checkpointing import RunCheckpoint
-from mutation_prediction.model.feature_extraction import ProteinMPNNFeatureExtractor
-from mutation_prediction.model.heads import PooledAttentionHead
 from mutation_prediction.model.model import (
-    MutationPredictionModel,
     MutationPredictionModelPL,
 )
-
-HEADS = {
-    "pooled_attention": PooledAttentionHead,
-}
 
 
 def parse_cfg(cfg):
@@ -63,6 +62,11 @@ def parse_cfg(cfg):
     cfg.model.freeze_weights = cfg.model.get("freeze_weights", True)
     cfg.model.load_pretrained = cfg.model.get("load_pretrained", True)
     cfg.model.mutant_embedding = cfg.model.get("mutant_embedding", False)
+    if cfg.model.head == "all_node_transformer":
+        cfg.model.transformer = {
+            **TRANSFORMER_DEFAULTS,
+            **cfg.model.get("transformer", {}),
+        }
 
     # double mutant model options
     cfg.model.dropout = cfg.model.get("dropout", None)
@@ -76,11 +80,7 @@ def parse_cfg(cfg):
 
 def train(cfg):
     cfg = parse_cfg(cfg)
-    if cfg.model.head not in HEADS:
-        raise ValueError(
-            f"Unknown model.head {cfg.model.head!r}. Available heads: {', '.join(HEADS)}"
-        )
-    head_constructor = HEADS[cfg.model.head]
+    get_head_constructor(cfg)  # Reject unknown model selections before loading data.
 
     metric = cfg.training.get("checkpoint_metric", "spearman")
     if metric not in ("mse", "spearman"):
@@ -124,9 +124,7 @@ def train(cfg):
         batch_size=cfg.training.batch_size,
     )
 
-    feature_extractor = ProteinMPNNFeatureExtractor(cfg)
-    prediction_head = head_constructor(input_dim=feature_extractor.output_dim)
-    model = MutationPredictionModel(feature_extractor, prediction_head)
+    model = build_model(cfg)
     model_pl = MutationPredictionModelPL(cfg, model)
 
     filename = cfg.name + "_{epoch:02d}_{" + monitor + ":.4f}"

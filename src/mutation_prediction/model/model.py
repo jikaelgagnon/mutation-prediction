@@ -9,6 +9,7 @@ from jaxtyping import Float, Int, Real
 from omegaconf import OmegaConf
 from torch import Tensor, nn
 
+from mutation_prediction.model.feature_extraction import ProteinFeatures
 from mutation_prediction.model.metrics import (
     get_metrics,
 )
@@ -16,10 +17,11 @@ from mutation_prediction.tensor_types import MutationBatch
 
 
 class MutationPredictionModel(nn.Module):
-    """Connect a feature extractor [B, M, D] to any compatible prediction head.
+    """Connect a mutation-only or all-node extractor to its compatible head.
 
     The extractor receives the nine protein/mutation tensors below. The head
-    receives only final_embed and should return one scalar per example [B, 1].
+    receives either a [B, M, D] tensor (PooledAttentionHead) or ProteinFeatures
+    (AllNodeTransformerHead) and returns one scalar per example [B, 1].
     """
 
     def __init__(self, feature_extractor: nn.Module, prediction_head: nn.Module):
@@ -75,7 +77,7 @@ class MutationPredictionModel(nn.Module):
             Predicted ΔΔG or epsilon, shaped [B, 1].
         """
 
-        final_embed = self.feature_extractor(
+        features: Tensor | ProteinFeatures = self.feature_extractor(
             X,
             S,
             mask,
@@ -86,7 +88,7 @@ class MutationPredictionModel(nn.Module):
             mut_wildtype_AAs,
             mut_mutant_AAs,
         )
-        return self.prediction_head(final_embed)
+        return self.prediction_head(features)
 
 
 class MutationPredictionModelPL(pl.LightningModule):
@@ -170,7 +172,7 @@ class MutationPredictionModelPL(pl.LightningModule):
             X,
             S,
             mask,
-            lengths,
+            _lengths,
             chain_M,
             chain_encoding_all,
             residue_idx,

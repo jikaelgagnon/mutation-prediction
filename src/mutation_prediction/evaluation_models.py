@@ -158,14 +158,11 @@ def load_checkpoint(spec, device):
     """Restore a complete project Lightning checkpoint without vanilla weights.
 
     Custom architectures can specify model_factory(cfg) -> nn.Module; otherwise
-    the standard ProteinMPNN extractor and configured training head are rebuilt.
+    the configured mutation-only or all-node extractor/head pairing is rebuilt.
     The complete state is loaded strictly, with no randomly retained weights.
     """
-    from mutation_prediction.model import (
-        MutationPredictionModel,
-        ProteinMPNNFeatureExtractor,
-    )
-    from mutation_prediction.model.train import HEADS, parse_cfg
+    from mutation_prediction.model import build_model
+    from mutation_prediction.model.train import parse_cfg
     from mutation_prediction.thermompnn_d_vendor.thermompnn.thermompnn.protein_mpnn_utils import (
         ProteinMPNN,
     )
@@ -196,12 +193,7 @@ def load_checkpoint(spec, device):
             augment_eps=0.0,
             dropout=cfg.model.get("proteinmpnn_dropout", 0.0),
         )
-        extractor = ProteinMPNNFeatureExtractor(cfg, protein_encoder=encoder)
-        if cfg.model.head not in HEADS:
-            raise ValueError(f"Unknown head {cfg.model.head!r}; supply model_factory")
-        model = MutationPredictionModel(
-            extractor, HEADS[cfg.model.head](extractor.output_dim)
-        )
+        model = build_model(cfg, protein_encoder=encoder)
     state = payload["state_dict"]
     if not all(key.startswith("model.") for key in state):
         raise ValueError(

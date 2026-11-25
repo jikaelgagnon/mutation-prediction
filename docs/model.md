@@ -37,14 +37,74 @@ parameters use `training.mpnn_learn_rate` when set; head parameters use
 
 `MutationPredictionModelPL(cfg, model)` supplies the training loss, metrics,
 optimizer, and learning-rate scheduler for the composed model. The training
-script selects a head constructor from its `HEADS` dictionary using `model.head`
-(default: `pooled_attention`) and combines it with `ProteinMPNNFeatureExtractor`.
-Add another compatible head constructor to that dictionary to select it by name.
+script and checkpoint evaluator both use `build_model(cfg)` from
+[`model/build.py`](../src/mutation_prediction/model/build.py). `model.head`
+selects `pooled_attention` (the unchanged default) or `all_node_transformer`,
+including the matching extractor. `HEADS` remains available from `model.train`;
+additional registered heads receive the legacy mutation tensor interface.
 When using `MutationPredictionModelPL.load_from_checkpoint`, supply the composed
 model explicitly with `model=model`; the checkpoint saves its weights and cfg,
 but does not reconstruct custom components.
 Parameter paths now start with `feature_extractor.prot_mpnn` and
 `prediction_head`; checkpoints from the earlier layout require key remapping.
+The all-node addition preserves these paths for existing pooled-attention models.
+
+### All-node transformer
+
+`AllNodeProteinMPNNFeatureExtractor` shares the WT ProteinMPNN pass with the
+mutation-only extractor, but retains every residue. Its `ProteinFeatures` result
+contains `nodes` `[B, L, E * (K + 2) + 1]`, `valid_mask` `[B, L]`,
+`mutation_positions` `[B, M]`, and `mutation_mask` `[B, M]`. Each node concatenates
+the last K decoder states, the WT amino-acid embedding, a separate WT-minus-mutant
+embedding, and a mutation indicator. The last two fields are zero at unchanged
+sites. WT identity and mutation identity are always retained; the legacy
+`mutant_embedding` switch does not affect this model. With E = 128 and K = 2,
+the node width is 513. Identity substitutions, including zero-filled mutation
+slots from collation, are excluded from mutation encoding and readout.
+
+`AllNodeTransformerHead` projects nodes to `d_model`, runs independently
+initialized [`nn.TransformerEncoderLayer`](https://docs.pytorch.org/docs/stable/generated/torch.nn.TransformerEncoderLayer.html)
+blocks in an `nn.ModuleList`, and applies a final layer norm. The default is
+three layers, width 128, four attention heads, feed-forward width 512, GELU,
+dropout 0.1, `batch_first=True`, and `norm_first=True`. The settings live under
+`model.transformer` and are saved in checkpoints. There is no causal mask:
+attention is bidirectional across usable residues. The key-padding mask is
+`~valid_mask`; `True` excludes a key, following
+[PyTorch mask semantics](https://docs.pytorch.org/docs/stable/generated/torch.nn.Transformer.html).
+Structural and residue-position context comes from ProteinMPNN; no additional
+positional encoding is added.
+
+Only after all-node attention does the head gather updated mutation-site vectors,
+apply learned scalar-weight pooling, and predict `[B, 1]`. Missing-coordinate
+residues and padding are excluded from attention keys and readout. Examples with
+no usable mutation site raise `ValueError`. Epsilon loss, signs, optimizer groups,
+checkpoint selection, and `predicted_ddg_12 = baseline_ddg + predicted_epsilon`
+are unchanged. Inject an encoder with `build_model(cfg, protein_encoder=encoder)`
+for focused experiments; its existing `requires_grad` settings are respected.
+
+Launch the separate experiment with:
+
+```bash
+uv run python -m mutation_prediction.model.train \
+  configs/proteinmpnn_paths.example.yaml \
+  configs/model_train_epsilon_transformer.yaml
+```
+
+Full attention has quadratic cost in the padded protein length. The new config
+starts with `training.batch_size: 8`; tune it for the cluster GPU and protein
+lengths. Evaluation has its own batch-size setting, which should also be reduced
+for this model. Checkpoints go to `checkpoints/model-epsilon-transformer/RUN_NAME/`.
+The existing checkpoint evaluator reconstructs this pairing and its saved
+transformer settings automatically; no `model_factory` is needed.
+
+Focused tests use injected lightweight encoders. Run these on the cluster:
+
+```bash
+uv run python -m unittest discover -s tests -p 'test_all_node_transformer.py'
+uv run python -m unittest discover -s tests -p 'test_pooled_attention_model.py'
+uv run python -m unittest discover -s tests -p 'test_epsilon_training.py'
+uv run python -m unittest discover -s tests -p 'test_evaluate.py'
+```
 
 [`src/mutation_prediction/model/train.py`](../src/mutation_prediction/model/train.py)
 loads the YAML configuration, builds the data loaders, and launches training.

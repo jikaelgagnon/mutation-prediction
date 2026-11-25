@@ -17,10 +17,12 @@ from torch import nn
 from mutation_prediction.data.collate import tied_featurize_mut
 from mutation_prediction.data.megascale import MegaScaleDatasetv2
 from mutation_prediction.model import (
+    AllNodeProteinMPNNFeatureExtractor,
     MutationPredictionModel,
     MutationPredictionModelPL,
     PooledAttentionHead,
     ProteinMPNNFeatureExtractor,
+    build_model,
 )
 from mutation_prediction.model.train import HEADS, parse_cfg, train
 
@@ -222,12 +224,46 @@ class EpsilonTrainingTests(unittest.TestCase):
 
     def test_unknown_head_fails_before_loading_data(self):
         self.cfg.model.head = "unknown"
-        with patch("mutation_prediction.model.train.get_v2_dataset") as load_data:
-            with self.assertRaisesRegex(
-                ValueError, "Unknown model.head.*Available heads"
-            ):
-                train(self.cfg)
+        with (
+            patch("mutation_prediction.model.train.get_v2_dataset") as load_data,
+            self.assertRaisesRegex(ValueError, "Unknown model.head.*Available heads"),
+        ):
+            train(self.cfg)
         load_data.assert_not_called()
+
+    def test_all_node_training_saves_reconstructable_epsilon_checkpoint(self):
+        self.cfg.model.head = "all_node_transformer"
+        self.cfg.model.transformer = {
+            "d_model": 16,
+            "nhead": 4,
+            "num_layers": 2,
+            "dim_feedforward": 32,
+            "dropout": 0.0,
+        }
+        with patch(
+            "mutation_prediction.model.feature_extraction.get_protein_mpnn",
+            side_effect=lambda cfg: TinyEncoder(),
+        ):
+            trainer = train(self.cfg)
+        self.assertEqual(trainer.global_step, 1)
+        self.assertIsInstance(
+            trainer.lightning_module.model.feature_extractor,
+            AllNodeProteinMPNNFeatureExtractor,
+        )
+        self.assertEqual(trainer.checkpoint_callback.monitor, "val_epsilon_mse")
+        self.assertEqual(trainer.checkpoint_callback.mode, "min")
+        checkpoint_path = trainer.checkpoint_callback.best_model_path
+        checkpoint = torch.load(checkpoint_path, weights_only=True)
+        cfg = OmegaConf.create(checkpoint["hyper_parameters"]["cfg"])
+        self.assertEqual(cfg.model.head, "all_node_transformer")
+        self.assertEqual(cfg.model.transformer.d_model, 16)
+        restored = MutationPredictionModelPL.load_from_checkpoint(
+            checkpoint_path,
+            model=build_model(cfg, protein_encoder=TinyEncoder()),
+            weights_only=True,
+        )
+        for name, value in trainer.lightning_module.state_dict().items():
+            torch.testing.assert_close(restored.state_dict()[name], value)
 
     def test_training_saves_checkpoint_with_correct_validation_mse(self):
         self.assertEqual(self.cfg.model.head, "pooled_attention")
