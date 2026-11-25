@@ -1,5 +1,6 @@
 """Check residual-label signs, split isolation, loss, and checkpoint selection."""
 
+import json
 import pickle
 import tempfile
 import unittest
@@ -10,12 +11,11 @@ import numpy as np
 import pandas as pd
 import torch
 from omegaconf import OmegaConf
+from pytorch_lightning.loggers.logger import Logger
 from torch import nn
 
-from mutation_prediction.data.megascale import (
-    MegaScaleDatasetv2,
-    tied_featurize_mut,
-)
+from mutation_prediction.data.collate import tied_featurize_mut
+from mutation_prediction.data.megascale import MegaScaleDatasetv2
 from mutation_prediction.model import (
     MutationPredictionModel,
     MutationPredictionModelPL,
@@ -23,6 +23,44 @@ from mutation_prediction.model import (
     ProteinMPNNFeatureExtractor,
 )
 from mutation_prediction.model.train import HEADS, parse_cfg, train
+
+
+class RecordingRun:
+    def __init__(self):
+        self.summary = {}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+
+class RecordingWandbLogger(Logger):
+    """Exercise the real Trainer/callback lifecycle without a W&B connection."""
+
+    def __init__(self, **kwargs):
+        super().__init__()
+        self.settings = kwargs
+        self.run = RecordingRun()
+
+    @property
+    def name(self):
+        return self.settings["name"]
+
+    @property
+    def version(self):
+        return self.settings["id"]
+
+    @property
+    def experiment(self):
+        return self.run
+
+    def log_hyperparams(self, params):
+        pass
+
+    def log_metrics(self, metrics, step=None):
+        pass
 
 
 class TinyEncoder(nn.Module):
@@ -206,7 +244,18 @@ class EpsilonTrainingTests(unittest.TestCase):
         head_constructor.assert_called_once_with(input_dim=24)
         self.assertEqual(trainer.global_step, 1)
         self.assertTrue(Path(trainer.checkpoint_callback.best_model_path).is_file())
-        self.assertTrue((self.root / "checkpoints/last.ckpt").is_file())
+        run_directory = Path(trainer.checkpoint_callback.dirpath)
+        self.assertEqual(run_directory.parent, self.root / "checkpoints")
+        self.assertEqual(run_directory.name, self.cfg.run.run_name)
+        last_checkpoint = run_directory / "last.ckpt"
+        self.assertTrue(last_checkpoint.is_file())
+        original_last = last_checkpoint.read_bytes()
+        run_metadata = json.loads((run_directory / "run.json").read_text())
+        self.assertEqual(
+            run_metadata["best_checkpoint_path"],
+            trainer.checkpoint_callback.best_model_path,
+        )
+        self.assertEqual(run_metadata["last_checkpoint_path"], str(last_checkpoint))
         self.assertEqual(trainer.checkpoint_callback.monitor, "val_epsilon_mse")
         self.assertEqual(trainer.checkpoint_callback.mode, "min")
         # Validation's final batch has one sample. All three must contribute.
@@ -223,6 +272,12 @@ class EpsilonTrainingTests(unittest.TestCase):
             checkpoint["hyper_parameters"]["cfg"]["data"]["target_column"],
             "epsilon_target",
         )
+        self.assertEqual(
+            checkpoint["hyper_parameters"]["cfg"]["run"]["run_id"],
+            self.cfg.run.run_id,
+        )
+        saved_config = OmegaConf.load(run_directory / "config.yaml")
+        self.assertEqual(saved_config.run.checkpoint_dir, str(run_directory))
         restored = MutationPredictionModelPL.load_from_checkpoint(
             checkpoint_path,
             model=make_model(self.cfg),
@@ -231,7 +286,7 @@ class EpsilonTrainingTests(unittest.TestCase):
         for name, value in trainer.lightning_module.state_dict().items():
             torch.testing.assert_close(restored.state_dict()[name], value)
 
-        self.cfg.training.ckpt = str(self.root / "checkpoints/last.ckpt")
+        self.cfg.training.ckpt = str(last_checkpoint)
         self.cfg.training.epochs = 2
         with (
             patch.dict(HEADS, registered_attention=head_constructor),
@@ -242,6 +297,58 @@ class EpsilonTrainingTests(unittest.TestCase):
         ):
             resumed = train(self.cfg)
         self.assertEqual(resumed.global_step, 2)
+        resumed_directory = Path(resumed.checkpoint_callback.dirpath)
+        self.assertNotEqual(resumed_directory, run_directory)
+        self.assertEqual(resumed_directory.parent, run_directory.parent)
+        self.assertEqual(last_checkpoint.read_bytes(), original_last)
+        self.assertEqual(self.cfg.run.resumed_from, str(last_checkpoint))
+        self.assertEqual(
+            Path(resumed.checkpoint_callback.best_model_path).parent, resumed_directory
+        )
+        self.assertTrue((resumed_directory / "last.ckpt").is_file())
+
+    def test_wandb_summary_tracks_the_saved_checkpoints_for_each_run(self):
+        self.cfg.project = "test-project"
+        trainers = []
+        with (
+            patch.dict("os.environ", {"SLURM_JOB_ID": "12345"}),
+            patch("pytorch_lightning.loggers.WandbLogger", RecordingWandbLogger),
+            patch(
+                "mutation_prediction.model.feature_extraction.get_protein_mpnn",
+                side_effect=lambda cfg: TinyEncoder(),
+            ),
+        ):
+            for _ in range(2):
+                trainers.append(train(self.cfg))
+
+        directories = set()
+        for trainer in trainers:
+            logger = trainer.logger
+            callback = trainer.checkpoint_callback
+            summary = logger.experiment.summary
+            directory = Path(summary["checkpoint_dir"])
+            directories.add(directory)
+            self.assertEqual(directory.name, logger.name)
+            self.assertIn("-slurm-12345-", directory.name)
+            self.assertTrue(directory.name.endswith(logger.version))
+            self.assertEqual(summary["run_id"], logger.version)
+            self.assertEqual(summary["slurm_job_id"], "12345")
+            self.assertEqual(summary["best_checkpoint_path"], callback.best_model_path)
+            self.assertEqual(summary["last_checkpoint_path"], callback.last_model_path)
+            self.assertEqual(
+                summary["best_checkpoint_score"], callback.best_model_score.item()
+            )
+            self.assertEqual(summary["checkpoint_monitor"], "val_epsilon_mse")
+            for key in ("best_checkpoint_path", "last_checkpoint_path"):
+                self.assertTrue(Path(summary[key]).is_file())
+                self.assertEqual(Path(summary[key]).parent, directory)
+            self.assertEqual(json.loads((directory / "run.json").read_text()), summary)
+            self.assertEqual(
+                logger.settings["config"]["checkpoint_dir"], str(directory)
+            )
+            self.assertFalse(logger.settings["log_model"])
+            self.assertIsNone(summary["resumed_from"])
+        self.assertEqual(len(directories), 2)
 
 
 if __name__ == "__main__":

@@ -11,7 +11,7 @@ data_loc:
 
 training:
   num_workers: 4
-  output_dir: checkpoints/model-no-aug
+  output_dir: checkpoints/model-no-aug # Parent directory for unique per-run checkpoint directories.
   learn_rate: 0.00001
   epochs: 100
   lr_schedule: true

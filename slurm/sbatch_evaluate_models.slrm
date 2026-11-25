@@ -14,7 +14,7 @@ cd "${SLURM_SUBMIT_DIR:?Submit this job from the repository root}"
 source .venv/bin/activate
 
 # Arguments after the Slurm script are forwarded to the evaluation command.
-# Example: sbatch slurm/sbatch_evaluate_models.slrm --checkpoint epsilon=checkpoints/model-epsilon/CHOSEN.ckpt
+# Copy best_checkpoint_path from the W&B run's Summary into --checkpoint epsilon=PATH.
 exec python -u -m mutation_prediction.evaluate configs/model_evaluate.yaml \
   --device cuda \
   --output-dir "results/evaluation/slurm-${SLURM_JOB_ID}" \

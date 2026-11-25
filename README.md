@@ -10,7 +10,7 @@ flowchart TD
     train["model/train.py<br/>data/{megascale,splits,collate}.py"]
     model["model/model.py<br/>feature_extraction.py → heads.py<br/>Frozen ProteinMPNN → pooled-attention head"]
     weights["Pretrained ProteinMPNN<br/>checkpoints/proteinmpnn/v_48_020.pt"]
-    output["checkpoints/model-epsilon/<br/>config.yaml + best/last .ckpt"]
+    output["checkpoints/model-epsilon/RUN_NAME/<br/>config.yaml + run.json + best/last .ckpt"]
 
     raw --> targets
     baseline --> targets
@@ -97,9 +97,16 @@ resolved values will be uploaded when you sync.
 `train_loss_step` records training loss during the epoch. Set
 `training.log_every_n_steps` in the YAML to log less often. Epoch metrics
 such as `train_epsilon_mse` and `val_epsilon_mse` appear when their respective
-loops finish. Use a separate `training.output_dir` per concurrent job to keep
-its checkpoints and `config.yaml` together. A `--resume` launch uses a new W&B
-run ID and records the checkpoint path in its config.
+loops finish. Each launch automatically gets its own directory under
+`training.output_dir`, named exactly like the W&B run, for example
+`checkpoints/model-epsilon/pooled_attention_epsilon-slurm-12345-a1b2c3d4e5f6/`.
+In the W&B run's Overview/Summary, `checkpoint_dir`, `best_checkpoint_path`,
+`last_checkpoint_path`, and `best_checkpoint_score` identify the saved files
+and validation score. These fields update after checkpoint saves and sync with
+offline runs. The directory also contains `config.yaml` and `run.json`; the
+checkpoint itself saves the run identity in its configuration.
+A `--resume` launch gets a new run ID and directory, records `resumed_from`,
+and selects the best checkpoint among the resumed launch's validation results.
 
 After the job exits, preview and upload unsynced runs from the login node:
 

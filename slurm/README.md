@@ -61,10 +61,12 @@ do not need changes.
 
 ### Evaluate trained models
 
-Choose a checkpoint from validation performance, then submit:
+Copy `best_checkpoint_path` from the training run's W&B Overview/Summary, then
+submit it for evaluation. Each training run now has its own directory named
+after its W&B run; the same paths are saved locally in that directory's `run.json`.
 
 ```bash
-sbatch slurm/sbatch_evaluate_models.slrm --checkpoint epsilon=checkpoints/model-epsilon/YOUR_SELECTED_CHECKPOINT.ckpt
+sbatch slurm/sbatch_evaluate_models.slrm --checkpoint epsilon=checkpoints/model-epsilon/RUN_NAME/YOUR_SELECTED_CHECKPOINT.ckpt
 ```
 
 This evaluates the cached additive baseline and the selected epsilon model on

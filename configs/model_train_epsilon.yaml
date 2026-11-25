@@ -13,7 +13,7 @@ data_loc:
 training:
   seed: 42 # Integer random seed for reproducibility.
   num_workers: 4 # Nonnegative integer; 0 loads data in the main process.
-  output_dir: checkpoints/model-epsilon # Directory for checkpoints and resolved config.yaml.
+  output_dir: checkpoints/model-epsilon # Parent directory; each launch creates a subdirectory named after its W&B run.
   learn_rate: 0.00001 # Positive float; AdamW learning rate.
   epochs: 100 # Positive integer; maximum training epochs.
   lr_schedule: true # true/false; reduce learning rate when validation MSE plateaus.

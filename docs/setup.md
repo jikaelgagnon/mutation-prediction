@@ -184,12 +184,13 @@ sbatch slurm/sbatch_train_epsilon_no_aug.slrm
 
 The job uses the published MegaScale training/validation memberships and keeps
 the test data held out. The default encoder is frozen. Checkpoints and the
-resolved training configuration are written to `checkpoints/model-epsilon/`.
-Choose a checkpoint by validation performance, then evaluate it:
+resolved training configuration are written to `checkpoints/model-epsilon/RUN_NAME/`,
+where `RUN_NAME` is also the W&B display name. Copy `best_checkpoint_path` from
+that run's W&B Overview/Summary to evaluate its validation-selected checkpoint:
 
 ```bash
 sbatch slurm/sbatch_evaluate_models.slrm \
-  --checkpoint epsilon=checkpoints/model-epsilon/YOUR_SELECTED_CHECKPOINT.ckpt
+  --checkpoint epsilon=checkpoints/model-epsilon/RUN_NAME/YOUR_SELECTED_CHECKPOINT.ckpt
 ```
 
 Both test datasets are enabled in `configs/model_evaluate.yaml`, with the paths

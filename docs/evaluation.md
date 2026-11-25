@@ -24,13 +24,15 @@ that wraps the upstream model.
 
 ## Run on the cluster
 
-Sync the code and choose a checkpoint using validation performance. From the
-repository root, submit:
+Sync the code and copy `best_checkpoint_path` from your training run's W&B
+Overview/Summary. Each training launch has its own checkpoint directory named
+after its W&B run; its `run.json` records the same path if tracking is disabled
+or the offline run has not been synced. From the repository root, submit:
 
 ```bash
 mkdir -p logs
 sbatch slurm/sbatch_evaluate_models.slrm \
-  --checkpoint epsilon=checkpoints/model-epsilon/YOUR_SELECTED_CHECKPOINT.ckpt
+  --checkpoint epsilon=checkpoints/model-epsilon/RUN_NAME/YOUR_SELECTED_CHECKPOINT.ckpt
 ```
 
 Use the actual checkpoint filename written by training. The evaluator never
@@ -43,7 +45,7 @@ The equivalent command **inside a compute allocation** is:
 
 ```bash
 .venv/bin/python -m mutation_prediction.evaluate configs/model_evaluate.yaml \
-  --checkpoint epsilon=checkpoints/model-epsilon/YOUR_SELECTED_CHECKPOINT.ckpt \
+  --checkpoint epsilon=checkpoints/model-epsilon/RUN_NAME/YOUR_SELECTED_CHECKPOINT.ckpt \
   --device cuda
 ```
 
@@ -137,7 +139,7 @@ Both datasets are enabled by default. To select them explicitly:
 
 ```bash
 sbatch slurm/sbatch_evaluate_models.slrm \
-  --checkpoint epsilon=checkpoints/model-epsilon/YOUR_SELECTED_CHECKPOINT.ckpt \
+  --checkpoint epsilon=checkpoints/model-epsilon/RUN_NAME/YOUR_SELECTED_CHECKPOINT.ckpt \
   --datasets megascale_test ptmul_d
 ```
 

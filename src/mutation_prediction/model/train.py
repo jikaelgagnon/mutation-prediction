@@ -4,17 +4,18 @@ import argparse
 import os
 from contextlib import nullcontext
 from functools import partial
+from pathlib import Path
 from uuid import uuid4
 
 import pytorch_lightning as pl
 from omegaconf import OmegaConf
-from pytorch_lightning.callbacks import ModelCheckpoint
 from torch.utils.data import DataLoader
 
 from mutation_prediction.data.collate import (
     tied_featurize_mut,
 )
 from mutation_prediction.data.splits import get_v2_dataset
+from mutation_prediction.model.checkpointing import RunCheckpoint
 from mutation_prediction.model.feature_extraction import ProteinMPNNFeatureExtractor
 from mutation_prediction.model.heads import PooledAttentionHead
 from mutation_prediction.model.model import (
@@ -80,7 +81,27 @@ def train(cfg):
             f"Unknown model.head {cfg.model.head!r}. Available heads: {', '.join(HEADS)}"
         )
     head_constructor = HEADS[cfg.model.head]
+
+    metric = cfg.training.get("checkpoint_metric", "spearman")
+    if metric not in ("mse", "spearman"):
+        raise ValueError("training.checkpoint_metric must be mse or spearman")
+    monitor = f"val_{cfg.model.target_name}_{metric}"
+    run_id = uuid4().hex[:12]
+    slurm_job_id = os.environ.get("SLURM_JOB_ID")
+    job_suffix = f"-slurm-{slurm_job_id}" if slurm_job_id else ""
+    run_name = f"{cfg.name}{job_suffix}-{run_id}"
+    checkpath = Path(cfg.training.get("output_dir", "checkpoints")).resolve() / run_name
+    resume_path = cfg.training.get("ckpt")
+    run_info = {
+        "run_id": run_id,
+        "run_name": run_name,
+        "slurm_job_id": slurm_job_id,
+        "checkpoint_dir": str(checkpath),
+        "resumed_from": str(Path(resume_path).resolve()) if resume_path else None,
+    }
+    cfg.run = run_info
     print("Configuration:\n", OmegaConf.to_yaml(cfg))
+    print(f"Checkpoint directory: {checkpath}", flush=True)
     pl.seed_everything(cfg.training.seed, workers=True)
 
     train_dataset, val_dataset = get_v2_dataset(cfg)
@@ -108,21 +129,18 @@ def train(cfg):
     model = MutationPredictionModel(feature_extractor, prediction_head)
     model_pl = MutationPredictionModelPL(cfg, model)
 
-    metric = cfg.training.get("checkpoint_metric", "spearman")
-    if metric not in ("mse", "spearman"):
-        raise ValueError("training.checkpoint_metric must be mse or spearman")
-    monitor = f"val_{cfg.model.target_name}_{metric}"
     filename = cfg.name + "_{epoch:02d}_{" + monitor + ":.4f}"
 
-    checkpath = os.path.abspath(cfg.training.get("output_dir", "checkpoints"))
-    os.makedirs(checkpath, exist_ok=True)
-    OmegaConf.save(cfg, os.path.join(checkpath, "config.yaml"))
+    checkpath.mkdir(parents=True, exist_ok=False)
+    OmegaConf.save(cfg, checkpath / "config.yaml")
 
-    checkpoint_callback = ModelCheckpoint(
+    checkpoint_callback = RunCheckpoint(
+        run_info,
         monitor=monitor,
         mode="min" if metric == "mse" else "max",
         dirpath=checkpath,
         filename=filename,
+        save_top_k=1,
         save_last=True,
     )
 
@@ -133,19 +151,16 @@ def train(cfg):
 
         log_dir = os.path.abspath(os.environ.get("WANDB_DIR") or ".")
         os.makedirs(log_dir, exist_ok=True)
-        run_id = uuid4().hex[:12]
-        slurm_job_id = os.environ.get("SLURM_JOB_ID")
-        job_suffix = f"-slurm-{slurm_job_id}" if slurm_job_id else ""
         logger = WandbLogger(
             project=cfg.project,
-            name=f"{cfg.name}{job_suffix}-{run_id}",
+            name=run_name,
             id=run_id,
             save_dir=log_dir,
             resume=None,
             log_model=False,
             config={
                 "run_config": OmegaConf.to_container(cfg, resolve=True),
-                "slurm_job_id": slurm_job_id,
+                **run_info,
             },
         )
 

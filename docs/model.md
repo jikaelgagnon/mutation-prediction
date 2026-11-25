@@ -84,15 +84,32 @@ If your data or checkpoints are elsewhere, update the corresponding YAML paths.
 Relative paths are resolved from the directory where you run training.
 
 The best checkpoint, selected by the lowest validation epsilon MSE
-(`val_epsilon_mse`), is saved in `checkpoints/model-epsilon/`. Its filename includes the run
-name, epoch, and validation score. Change `training.output_dir` or `name` in the
-training configuration to customize these outputs. The learning-rate scheduler
-continues to monitor validation MSE (`val_epsilon_mse`).
+(`val_epsilon_mse`), is saved in `checkpoints/model-epsilon/RUN_NAME/`. Each launch
+gets a unique run name shared with W&B, such as
+`pooled_attention_epsilon-slurm-12345-a1b2c3d4e5f6`; without Slurm, the job suffix
+is omitted. `training.output_dir` sets the parent directory, and `name` sets the
+run-name prefix. The checkpoint filename includes the model name, epoch, and
+validation score. The learning-rate scheduler continues to monitor validation
+MSE (`val_epsilon_mse`).
 
 The default epsilon YAML enables Weights & Biases logging via `project`;
 install the tracking extra as shown in setup. The Slurm jobs record offline,
 with authentication only required for later uploads. With `project` omitted
 or set to null, W&B logging is disabled.
+
+To find the checkpoint for a W&B run, open its Overview/Summary and copy
+`best_checkpoint_path` into the evaluation command's `--checkpoint epsilon=...`
+argument. `checkpoint_dir`, `last_checkpoint_path`, `best_checkpoint_score`,
+`checkpoint_monitor`, and `checkpoint_mode` are also recorded there. Paths are
+absolute paths on the training machine or cluster; checkpoint files stay on
+that filesystem. The summary updates after checkpoint saves, including during
+offline recording, and is uploaded by the usual `wandb sync` command.
+
+Every run directory contains its resolved `config.yaml` and a `run.json` with
+the same checkpoint paths, scores, run ID, run name, Slurm job ID, and resume
+source. The saved checkpoint's `hyper_parameters.cfg.run` also records its run
+identity. Runs without W&B use the same directory layout and local metadata.
+Existing checkpoints from earlier runs are left in place.
 
 ### Epsilon targets
 
@@ -111,13 +128,17 @@ validation mutations); the combined CSV also retains all 18,574 test mutations.
 The old `Megascale-D-full.csv` source uses different memberships. After switching
 sources, start a fresh training run rather than resuming a model trained on the
 old dataset. The ProteinMPNN encoder is frozen by default. Checkpoints are
-selected by the lowest `val_epsilon_mse` and saved alongside `last.ckpt` and
-the resolved `config.yaml` in `checkpoints/model-epsilon/`. The learning-rate
+selected by the lowest `val_epsilon_mse` and saved alongside `last.ckpt`,
+`config.yaml`, and `run.json` in `checkpoints/model-epsilon/RUN_NAME/`. The learning-rate
 scheduler also monitors `val_epsilon_mse`.
 
 Append `--fast-dev-run` for one training and validation batch. To resume a full
-run, append `--resume checkpoints/model-epsilon/last.ckpt`. Adjust the epsilon
-YAML to change batch size, learning rate, epochs, or data-loader workers.
+run, append `--resume checkpoints/model-epsilon/RUN_NAME/last.ckpt`. A resumed
+launch gets a new W&B run and directory, with `resumed_from` pointing to its
+source checkpoint. Optimizer, scheduler, and epoch state resume normally; the
+new run selects its best checkpoint from its own validation results and leaves
+the source run's files intact. Adjust the epsilon YAML to change batch size,
+learning rate, epochs, or data-loader workers.
 
 The optional `configs/model_train_epistatic.yaml` retains a legacy measured-ddG
 comparison on `Megascale-D-full.csv`; it uses different input memberships and
