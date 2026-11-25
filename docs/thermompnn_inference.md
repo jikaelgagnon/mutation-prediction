@@ -93,8 +93,13 @@ From the repository root:
 uv run prepare-targets
 ```
 
-The defaults use `Megascale-D-full.csv`, the existing WT PDB directory, and
-`checkpoints/thermompnn/ThermoMPNN-ens1.ckpt`. Device selection defaults to CUDA
+The defaults concatenate the published `Megascale-D-train.csv`,
+`Megascale-D-val.csv`, and `Megascale-D-test.csv` under
+`data/raw/megascale/csv/`, using the existing WT PDB directory and
+`checkpoints/thermompnn/ThermoMPNN-ens1.ckpt`. These are the paper's no-augmentation
+ablation splits: 85,253 / 10,282 / 18,574 mutations across 90 / 17 / 20 proteins.
+They differ from the curated `Megascale-D-full.csv` benchmark dataset.
+Device selection defaults to CUDA
 when available, otherwise CPU; override with `--device cpu` or `--device cuda`.
 This export uses measured double mutants only and requires no Rosetta structures.
 
@@ -105,6 +110,8 @@ data/processed/thermompnn/Megascale-D-single-predictions.csv
 data/processed/thermompnn/Megascale-D-single-predictions.metadata.json
 ```
 
+The default combined export orders the source files as train, val, then test and
+adds a `split` column identifying each row's published source.
 Each input pair keeps its original columns and row order, with these additions:
 
 | Column | Meaning |
@@ -122,6 +129,9 @@ and nonfinite predictions stop the export with an error. It does not silently
 drop rows. One encoder pass per WT protein supplies predictions reused across
 all its pairs. The metadata records the input, checkpoint, and structure SHA-256
 hashes, model, device, chain, and row/protein/unique-mutation counts.
+For the default combined export, `input_csvs` records each split's source path and
+hash, and `split_counts` records its row count. Explicit `--input-csv` exports
+retain the single-source `input_csv` metadata field.
 
 Input labels, including `ddG_ML`, are copied without sign changes. The published
 MegaScale-D CSVs and the predictions use kcal/mol with positive values indicating
@@ -142,6 +152,8 @@ uv run prepare-targets \
 ```
 
 The script does not create or alter train/validation/test splits.
+The default combines the three published files without selecting a new split,
+matching constituent measured singles, or filtering to `Megascale-D-full.csv`.
 
 ### Add epsilon targets to an existing prediction export
 
@@ -161,6 +173,9 @@ formula and sign convention. Nonfinite labels and inconsistent baseline sums
 raise errors. The residual is tied to that specific frozen checkpoint and
 includes its single-mutant prediction errors. The existing `ddG_ML_epi_term`
 column describes experimental epistasis and is not used as this training target.
+Cache conversion preserves the input rows; it does not correct an old cache's
+split memberships or recover omitted mutations. Regenerate from the three
+published CSVs if the cache was prepared from `Megascale-D-full.csv`.
 
 The training loss can then be simply:
 

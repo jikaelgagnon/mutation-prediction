@@ -109,7 +109,12 @@ prediction errors. To reconstruct the double-mutant prediction in the CSV's
 sign convention, use `predicted_ddg_12 = baseline_ddg + epsilon_hat`.
 
 Training uses the existing protein-level train/validation split without
-augmentation. The ProteinMPNN encoder is frozen by default. Checkpoints are
+augmentation. Prepare the epsilon CSV with the default `prepare-targets` command
+to retain the published ablation memberships (85,253 training and 10,282
+validation mutations); the combined CSV also retains all 18,574 test mutations.
+The old `Megascale-D-full.csv` source uses different memberships. After switching
+sources, start a fresh training run rather than resuming a model trained on the
+old dataset. The ProteinMPNN encoder is frozen by default. Checkpoints are
 selected by the lowest `val_epsilon_mse` and saved alongside `last.ckpt` and
 the resolved `config.yaml` in `checkpoints/model-epsilon/`. The learning-rate
 scheduler also monitors `val_epsilon_mse`.

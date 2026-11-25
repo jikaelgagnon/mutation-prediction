@@ -11,6 +11,52 @@ sbatch slurm/sbatch_train_epsilon_no_aug.slrm
 
 Submission prints a job ID. Replace JOB_ID below with that number.
 
+### Prepare the published no-augmentation splits
+
+Run these checks and data preparation on the cluster. Install dependencies and
+download the MegaScale data and single-mutant ThermoMPNN checkpoint first (see
+the [setup instructions](../README.md)). Then submit from the repository root:
+
+```bash
+mkdir -p logs
+sbatch slurm/sbatch_prepare_epsilon_published.slrm
+```
+
+The job performs three steps, stopping on any unexpected result:
+
+1. Run the new CLI membership test against the source at commit
+   `fbb33032f53267c749c74f61b054c36a28acb9e8`, requiring the old default to fail
+   specifically on mutation membership. A missing dependency or other error
+   does not count as a red result. Run the same test and existing preparation
+   tests against the working source, requiring them to pass.
+2. Generate `data/processed/thermompnn/Megascale-D-epsilon.csv` from the three
+   published split CSVs using the GPU. This replaces an existing file at that path.
+3. Audit the actual export against every published mutation and split, the
+   paper's mutation/protein counts, unchanged measured targets, and epsilon labels.
+
+The red phase reads the baseline into a temporary directory without changing
+the working tree. Keep that commit in the cluster clone's Git history; shallow
+clones must fetch it before running. The CLI test uses real PDB parsing and a
+tiny random checkpoint, so the red/green checks need no downloaded weights or
+dataset; full generation and its audit do need the downloaded files.
+
+To run each step manually inside a cluster allocation:
+
+```bash
+source .venv/bin/activate
+python -u scripts/check_published_splits_red_green.py
+python -u -m mutation_prediction.prepare_targets --device cuda --output data/processed/thermompnn/Megascale-D-epsilon.csv
+MEGASCALE_EPSILON_CSV=data/processed/thermompnn/Megascale-D-epsilon.csv python -m unittest discover -s tests -p test_published_epsilon_export.py -v
+```
+
+Expected full-export counts are 85,253 / 10,282 / 18,574 mutations and 90 / 17 /
+20 proteins for train / validation / test. The actual-export test skips during
+ordinary test discovery unless `MEGASCALE_EPSILON_CSV` is set.
+
+Only after this job succeeds, submit `slurm/sbatch_train_epsilon_no_aug.slrm`
+for a fresh run without `--resume`. The training configuration and architecture
+do not need changes.
+
 ### Sync W&B runs after the job
 
 All training scripts save W&B runs offline under `wandb/` in the project

@@ -76,9 +76,24 @@ uv run prepare-targets --output data/processed/thermompnn/Megascale-D-epsilon.cs
 uv run mutation-prediction configs/proteinmpnn_paths.example.yaml configs/model_train_epsilon.yaml
 ```
 
+Target preparation defaults to the published `Megascale-D-{train,val,test}.csv`
+files, preserving the no-data-augmentation ablation memberships: 85,253 / 10,282 /
+18,574 mutations across 90 / 17 / 20 proteins. The combined output includes a
+`split` column and per-source hashes/counts in its metadata. The existing training
+loader selects these proteins using `splits.pkl`; no model changes are required.
+`Megascale-D-full.csv` is a different benchmark dataset and is only used if
+explicitly supplied with `--input-csv`.
+
 For an existing cached export, use
 `prepare-targets --predictions-csv <cached.csv> --output data/processed/thermompnn/Megascale-D-epsilon.csv`.
-This computes labels without running the baseline again.
+This computes labels without running the baseline again and preserves the cache's
+memberships. An old cache generated from `Megascale-D-full.csv` does not reproduce
+the published ablation splits; regenerate it with the default preparation path.
+
+For cluster-only red/green checks, target generation, and a full membership audit,
+see the [published-split Slurm job](slurm/README.md#prepare-the-published-no-augmentation-splits).
+Train a fresh model after replacing the old dataset; do not resume a checkpoint
+trained on the previous memberships.
 
 Edit the paths/device in `configs/proteinmpnn_paths.example.yaml` and training
 options in `configs/model_train_epsilon.yaml`. Paths resolve from the working

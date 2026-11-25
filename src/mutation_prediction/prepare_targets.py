@@ -2,7 +2,10 @@
 
 One encoder pass per WT structure supplies both constituent predictions for
 every pair belonging to that protein. This script does not generate augmentation.
+By default, concatenate the published ablation train/val/test CSVs rather than
+the separately curated Megascale-D-full.csv benchmark dataset.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -21,9 +24,8 @@ from mutation_prediction.thermompnn import ALPHABET, ThermoMPNNPredictor
 from mutation_prediction.thermompnn_d_vendor.thermompnn.thermompnn.protein_mpnn_utils import (
     parse_PDB,
 )
-print("done imports")
+
 REPO_ROOT = Path.cwd()
-print(REPO_ROOT)
 SUBSTITUTION = re.compile(
     r"([ACDEFGHIKLMNPQRSTVWY])([1-9][0-9]*)([ACDEFGHIKLMNPQRSTVWY])"
 )
@@ -207,7 +209,7 @@ def main():
     inputs.add_argument(
         "--input-csv",
         type=Path,
-        default=REPO_ROOT / "data/raw/megascale/csv/Megascale-D-full.csv",
+        help="Use a custom source CSV instead of the published train/val/test CSVs",
     )
     inputs.add_argument(
         "--predictions-csv",
@@ -230,7 +232,6 @@ def main():
     )
     parser.add_argument("--chain", default="A")
     parser.add_argument("--device", default="auto", help="auto, cpu, cuda, or cuda:0")
-    print("Parsed args")
     args = parser.parse_args()
 
     if args.predictions_csv is not None:
@@ -251,8 +252,34 @@ def main():
             "sha256": sha256(args.predictions_csv),
         }
     else:
-        print(args.input_csv)
-        frame = pd.read_csv(args.input_csv)
+        if args.input_csv is None:
+            csv_dir = REPO_ROOT / "data/raw/megascale/csv"
+            sources = {
+                split: csv_dir / f"Megascale-D-{split}.csv"
+                for split in ("train", "val", "test")
+            }
+            frame = pd.concat(
+                [
+                    pd.read_csv(path).assign(split=split)
+                    for split, path in sources.items()
+                ],
+                ignore_index=True,
+            )
+            source_metadata = {
+                "input_csvs": {
+                    split: {"path": str(path.resolve()), "sha256": sha256(path)}
+                    for split, path in sources.items()
+                },
+                "split_counts": frame["split"].value_counts().to_dict(),
+            }
+        else:
+            frame = pd.read_csv(args.input_csv)
+            source_metadata = {
+                "input_csv": {
+                    "path": str(args.input_csv.resolve()),
+                    "sha256": sha256(args.input_csv),
+                },
+            }
         device = args.device
         if device == "auto":
             device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -264,10 +291,7 @@ def main():
             {
                 "model": "ThermoMPNN-v2-single",
                 "device": str(predictor.device),
-                "input_csv": {
-                    "path": str(args.input_csv.resolve()),
-                    "sha256": sha256(args.input_csv),
-                },
+                **source_metadata,
                 "checkpoint": {
                     "path": str(args.checkpoint.resolve()),
                     "sha256": sha256(args.checkpoint),
