@@ -46,11 +46,18 @@ class PublishedEpsilonExportTests(unittest.TestCase):
         index = ["WT_name", "mut_type"]
         expected = expected.set_index(index).sort_index()
         result = result.set_index(index).sort_index()
-        np.testing.assert_allclose(result.ddG_ML, expected.ddG_ML, rtol=0, atol=0)
+        # CSV serialization and parsing can shift the last few floating-point
+        # bits. Membership/count assertions above remain exact; numeric labels
+        # allow only round-trip noise, far below the experimental precision.
+        np.testing.assert_allclose(
+            result.ddG_ML, expected.ddG_ML, rtol=1e-14, atol=1e-14
+        )
         self.assertTrue(
             np.isfinite(result[["baseline_ddg", "epsilon_target"]]).all().all()
         )
-        np.testing.assert_allclose(result.true_ddg_12, expected.ddG_ML, rtol=0, atol=0)
+        np.testing.assert_allclose(
+            result.true_ddg_12, expected.ddG_ML, rtol=1e-14, atol=1e-14
+        )
         np.testing.assert_allclose(
             result.baseline_ddg, result.pred_ddg_1 + result.pred_ddg_2
         )

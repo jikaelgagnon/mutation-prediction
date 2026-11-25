@@ -195,3 +195,4 @@ Rosetta augmentation, upstream ThermoMPNN training, the Siamese model, and
 legacy benchmark inference have been retired.
 
 Validation: `uv run python -m unittest discover -s tests -v`.
+
