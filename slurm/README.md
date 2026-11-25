@@ -13,6 +13,28 @@ sbatch slurm/sbatch_train_epsilon_no_aug.slrm
 
 Submission prints a job ID. Replace JOB_ID below with that number.
 
+### Train the all-node transformer
+
+Submit from the repository root. Check one training and validation batch first:
+
+```bash
+mkdir -p logs
+sbatch slurm/sbatch_train_epsilon_transformer.slrm --fast-dev-run
+```
+
+For full training:
+
+```bash
+sbatch slurm/sbatch_train_epsilon_transformer.slrm
+```
+
+This uses `configs/model_train_epsilon_transformer.yaml` with batch size 8,
+one GPU, four CPUs, 16 GB memory, and a six-hour time limit. CPU thread limits
+follow the Slurm CPU allocation. Logs go to `logs/slurm_JOB_ID.out` and `.err`,
+W&B records offline, and checkpoints go to
+`checkpoints/model-epsilon-transformer/RUN_NAME/`. Additional training arguments,
+including `--resume PATH`, are passed through to the training entry point.
+
 ### Prepare the published no-augmentation splits
 
 Run these checks and data preparation on the cluster. Install dependencies and
